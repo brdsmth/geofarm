@@ -12,10 +12,14 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint:vocab": "bun tools/lint-vocab.ts",
-    "check": "bun run typecheck && bun test && bun run lint:vocab"
+    "check": "bun run typecheck && bun test && bun run lint:vocab",
+    "app": "bun build apps/web/index.html --outdir=apps/web/dist && cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs apps/web/dist/ && bun apps/web/serve.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.0.0"
   }
 }

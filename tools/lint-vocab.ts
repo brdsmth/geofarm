@@ -34,21 +34,24 @@ const BANNED = [
   "uuid",
 ];
 
-const CLIENT_ROOT = join(import.meta.dir, "..", "packages", "client");
+const ROOTS = [
+  join(import.meta.dir, "..", "packages", "client"),
+  join(import.meta.dir, "..", "apps"),
+];
 const STRING_LITERAL = /(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
 
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) out.push(...walk(path));
+    if (statSync(path).isDirectory()) { if (name !== "dist") out.push(...walk(path)); }
     else if (name.endsWith(".ts") || name.endsWith(".tsx")) out.push(path);
   }
   return out;
 }
 
 const violations: string[] = [];
-for (const file of walk(CLIENT_ROOT)) {
+for (const file of ROOTS.flatMap((r) => walk(r))) {
   // Tests are developer-facing, not product copy.
   if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
   const source = readFileSync(file, "utf8");

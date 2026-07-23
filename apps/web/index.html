@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>geofarm</title>
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <div id="brand">geofarm</div>
+
+    <div id="search">
+      <input id="search-input" type="search" placeholder="Find a place…" autocomplete="off" />
+      <div id="search-results" hidden></div>
+    </div>
+
+    <div id="layers" aria-label="What's shown"></div>
+
+    <div id="hint">Tap a field to see its story</div>
+
+    <aside id="panel" hidden>
+      <button id="panel-close" aria-label="Close">×</button>
+      <div id="panel-body"></div>
+    </aside>
+
+    <div id="timeline">
+      <button id="today" hidden>Back to today</button>
+      <div id="season-label">Today</div>
+      <input id="season" type="range" min="0" max="90" value="90" step="1" aria-label="Season" />
+    </div>
+
+    <div id="tooltip" hidden></div>
+  </body>
+</html>
