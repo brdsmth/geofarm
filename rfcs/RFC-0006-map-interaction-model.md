@@ -48,6 +48,8 @@ Four properties make the View the load-bearing concept of the platform's interac
 
 There is exactly one View in play per viewer at a time. That is what "no pages" means architecturally: the application has no other state of "where you are" than the View itself.
 
+*(Amendment 1, per REVIEW-001 §9.)* The View has an owner: **every View is an Actor's View**, and its spatial scope resolves against that Actor's accessible sub-world (RFC-0002 §2.3), never against the unqualified world. Property 2 is correspondingly sharpened by the documents that followed: what the embedded AI receives is the View *within the intersection of the viewer's scope and the AI's own* — the two-scoped shared frame RFC-0002 §5.3 defines and RFC-0010 §4 resolves as the three rings.
+
 ---
 
 ## 2. The five verbs
@@ -142,6 +144,8 @@ The Reveal verb is the interaction face of RFC-0005, and it is thin by design be
 
 One addition is architectural rather than inherited: **Reveal is how the viewer and the AI stay honest with each other.** Because the View is the AI's context (§1), what the viewer has revealed *is what the AI sees them seeing*. A filtered-out hazard is filtered out of the shared context too — which makes the state of the lens stack part of the conversation, not cosmetic. RFC-0010 must handle the case where the AI knows something the current View hides; this document only establishes that the View defines the *shared* frame, not the AI's *total* knowledge.
 
+*(Amendment 1.)* That open case has since been handled: RFC-0010 §4's three rings (Frame ⊂ Conversable ⊂ Reach) resolve it — the AI surfaces merely-filtered content by proposing to bring it into the Frame, delivers only conclusions derivable within the Conversable, and handles genuinely out-of-scope knowledge autonomously through the world. This paragraph's obligation is discharged; the frame it defines is the innermost ring.
+
 ---
 
 ## 8. Authoring: editing and creating
@@ -155,6 +159,8 @@ The fifth verb, the only consequential one, and the one the append-only world (R
 **Annotating is authoring content about an indicated context.** A note, a photo, a scouting report: an Observation Event whose references are the current selection and whose geometry is inherited from it or drawn for it (RFC-0004 §7). The View supplies the *aboutness* — what you were looking at, when, through what lenses — so authored content lands already placed, dated, and attributed without a single form field asking "which field is this about?" The context the viewer already established *is* the metadata. This — not chat, not dashboards — is where the map-as-operating-system claim pays daily rent: the system state (the View) is rich enough that recording reality requires only the reality, not its re-description.
 
 Every authored thing carries its Actor (RFC-0001 §3.4) — the person, machine, or AI that wrote it — so provenance filtering (§7) works on everything authorship produces, from day one, for free.
+
+*(Amendment 1.)* Author is bounded: an Actor authors only **within their granted scope** (RFC-0002 §3.1, *author* capability) — the fifth verb's reach, like the four read verbs', ends at the sub-world's edge. And the promotion gate has gained a sibling: promoting a drawn region may produce world content (§3) **or a Grant** — sharing performed as a spatial act, the drawn scope becoming the shared one (RFC-0002 §4.1). Promotion and granting are the same gesture pointed at content and at access respectively; both are Author, both append, both attributed.
 
 ---
 
@@ -181,9 +187,19 @@ Every authored thing carries its Actor (RFC-0001 §3.4) — the person, machine,
 
 **Is subordinating lists and tables to the map honest, or ideology?** §6 permits lists only as presentations of a lens, in correspondence with the map. Real agricultural work is sometimes genuinely tabular — comparing input costs across twenty fields is a spreadsheet-shaped task, and forcing it through map-subordination may serve the principle and disserve the user. I hold the line here because RFC-0000 §2.2 demands it ("a capability not on the map is a signal it isn't understood spatially yet") — but I flag that "spatially understood" must not harden into "spatially *presented* at all costs." The subordination is of *architecture* (lists are lens-presentations, not separate contexts with separate state), not necessarily of *screen area*. If that distinction is ever lost, this section will have been the start of the loss.
 
-**One viewer, one View — what about collaboration?** §1 declares one View per viewer and §1.3 makes Views shareable, but nothing here models two people (or a person and an AI agent) attending to the *same* View simultaneously, diverging, or merging attention. Shared Views as *values* support handoff, not co-presence. Collaboration is deliberately unaddressed — it needs its own treatment and probably strains Selection (whose attention is it?) more than any other concept. Named as missing rather than quietly absorbed.
+**One viewer, one View — what about collaboration?** §1 declares one View per viewer and §1.3 makes Views shareable, but nothing here models two people (or a person and an AI agent) attending to the *same* View simultaneously, diverging, or merging attention. Shared Views as *values* support handoff, not co-presence. Collaboration is deliberately unaddressed — it needs its own treatment and probably strains Selection (whose attention is it?) more than any other concept. Named as missing rather than quietly absorbed. *(Amendment 1: the access half of this flag is answered — collaboration as scoped participation is RFC-0002, and this document's Views, verbs, and gates now operate within it. The **co-presence** half remains open and was formally returned to this document's jurisdiction by RFC-0002 §10; a future amendment here owns it, with RFC-0014 §8's state-model crack as its known constraint.)*
 
 **Overall.** The claims I am most confident in are the two laws — only-Author-writes-and-only-by-addition, and ephemeral-until-promoted — because both fall directly out of frozen commitments (append-only history; lenses touch nothing) and both do daily work in every gesture. The claim I am least confident in is the pentad of verbs: it is the document's organizing idea and its most stylized one, and if interaction reality refuses the taxonomy, the five verbs will be remembered as tidy rather than true. If this model is wrong, it is probably wrong there — or in the fineness of the View-is-not-a-primitive line. Both stated plainly, so the next author knows which stones to turn first.
+
+---
+
+## 11. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-07-23 | REVIEW-001 §9 (executed at milestone M0) | §1: every View is an Actor's View, scoped to their sub-world; the AI's inherited context sharpened to the two-scope intersection (RFC-0002 §5.3, RFC-0010 §4). §7: the hidden-knowledge obligation marked discharged by the three rings. §8: Author bounded by granted scope; the promotion gate gains granting as its sibling (sharing as a spatial act). §10: the collaboration flag split — access answered by RFC-0002; co-presence formally owned here for a future amendment. |
+
+**User Experience Implications (Amendment 1).** *Projection:* a user still just looks, draws, records, and asks; sharing becomes "draw the line, choose who" — a fence for access, said like a fence. *Concealment:* sub-worlds, capability checks, and the Conversable intersection are invisible; nobody encounters a permission dialog wearing architectural words. *Leak check:* no internal term surfaces; "shared with Maria until harvest" is the whole vocabulary of what Grant machinery does. *Wholeness:* a scoped collaborator's five verbs all work identically inside their sub-world — a smaller farm, not a crippled tool.
 
 ---
 
