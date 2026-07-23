@@ -152,6 +152,7 @@ Informally: the **nouns** of the world (Entity), the **history** of the world (E
 - **Actor → Event:** source or cause of every Event.
 - **Actor → Assertion:** author of every Assertion.
 - **Actor ⟷ Entity (coincidence):** an Actor may be represented by an Entity when it also exists at a place; the two are related by role, never identified.
+- **Actor ⟷ Actor (representation)** *(Amendment 1, per REVIEW-001 §9 and RFC-0002 §1.4)*: an Actor may act **on behalf of** another — the one mechanism carrying both membership (an employee acting within an organization) and delegation (a consultant or AI agent acting for a principal); the two differ in scope and duration, not in kind. Every represented act carries **dual attribution** — the acting Actor and the full chain acted-for — and Actor structure changes only **by Event**, so organizational membership and delegation history are placed in time and reconstructable as-of any moment. The full treatment is RFC-0002.
 
 ---
 
@@ -186,6 +187,17 @@ Every noun the domain suggested, and its disposition. This is the audit trail of
 | **Relationship** | → intrinsic connective tissue | Promoting relationships to a primitive dissolves every other primitive into undifferentiated graph. Relationships are described per-primitive, not admitted as one. Re-examined in §6. |
 | **Plan / Forecast** | → Assertion | A claim about a hypothetical or future state. The forward-looking shape of an Assertion. |
 
+The following rows were appended by Amendment 1 (per REVIEW-001 §6, after the collaboration review):
+
+| Noun | Disposition | Reasoning |
+|------|-------------|-----------|
+| **Identity (as account/participant)** | → Actor / mechanism | Redundant with Actor; the name collides with entity-identity; the residue is authentication (deferred). |
+| **Resource** | → rejected (mechanism-native) | Container-thinking; the unit of sharing is the Scope over the one world (RFC-0002). |
+| **Scope** | → named reuse of filter | A lens turned from presentation to permission; not a primitive (RFC-0002 §2). |
+| **Grant / Share** | → Event classification | The act of extending access; recorded, dated, sourced, superseded-not-deleted (RFC-0002 §4). |
+| **Permission / Role** | → derived / mechanism | Access state is a projection of Grant Events; role bundles are naming conveniences, deferred. |
+| **Team / Workspace** | → organizational Actor / rejected | Membership is representation; "workspace" is container-thinking re-entering. |
+
 ---
 
 ## 5. The frozen vocabulary
@@ -209,7 +221,7 @@ The task of a reduction is to be suspicious of its own result. Four is a satisfy
 
 **Should Actor merge into Entity?** Tempting, because on a farm most Actors (people, machines, the organization) are also located things. I have kept Actor separate because at least two important Actors — an external data source and the AI itself — have agency without a farm location, and because *agency* and *spatial existence* are genuinely different responsibilities that happen to coincide in some real-world things. If the platform ever decides that non-spatial agency can be modeled as an Entity with a null or abstract place, Actor could collapse into Entity. I have resisted that because it would weaken Spatial-First by normalizing placeless Entities (see next point). This merge is plausible but, I think, a mistake.
 
-**Does Actor violate Spatial-First?** Yes, partially, and honestly. RFC-0000 said nothing enters the model without a place, yet an external data source is an Actor with no farm location. The resolution I have taken is that Actor is *agency*, not a thing *in the world* — the satellite provider is not on the farm, it acts upon the farm's model from outside — so it is not a counterexample to "everything *in the farm* has a place" so much as a reminder that agency can originate outside the modeled world. This is a real seam, not a clean fit, and RFC-0000 should perhaps be amended to say explicitly that *world content* is spatial while *agency* may originate outside it. I flag this for RFC-0000's next revision rather than papering over it here.
+**Does Actor violate Spatial-First?** Yes, partially, and honestly. RFC-0000 said nothing enters the model without a place, yet an external data source is an Actor with no farm location. The resolution I have taken is that Actor is *agency*, not a thing *in the world* — the satellite provider is not on the farm, it acts upon the farm's model from outside — so it is not a counterexample to "everything *in the farm* has a place" so much as a reminder that agency can originate outside the modeled world. This is a real seam, not a clean fit, and RFC-0000 should perhaps be amended to say explicitly that *world content* is spatial while *agency* may originate outside it. I flag this for RFC-0000's next revision rather than papering over it here. *(Amendment 1: this flag has been discharged — RFC-0000 Amendment 1 added exactly this boundary to its §2.1.)*
 
 **Was Document wrongly rejected?** This is the closest rejection. A scouting photo, a soil lab report, and a signed contract feel like first-class things, and treating them merely as "payload of an Event or Assertion" may prove too thin — evidence has its own lifecycle (versioning, authenticity, retention) that neither Event nor Assertion obviously owns. I have rejected it because in every case I could construct, the document is the *content that evidences* a fact or claim rather than an independent domain concept, and admitting it risks reopening the door to a general "attachment" primitive that dissolves the discipline. But if a later RFC finds that evidence needs to be reasoned about independently of the facts it supports, Document is the fifth primitive most likely to earn admission. It is the leading candidate for un-rejection.
 
@@ -220,6 +232,16 @@ The task of a reduction is to be suspicious of its own result. Four is a satisfy
 **Is four too few — did the merges destroy real distinctions?** The aggressive merges (Observation→Event, Recommendation→Assertion, Asset→Entity, Source→Actor) each erased a distinction that some domain expert cares about. My defense is that every erased distinction was *semantic classification* rather than *structural behavior* — an aphid observation and a rainfall are the same *kind of thing that happened*, differing only in what they mean. Classification is expressible without new primitives. If any of these merges is wrong, it will show up as a primitive being asked to carry two genuinely different lifecycles at once; that is the signal to split it, and this document should be amended when that signal appears.
 
 **Overall.** The set I am most confident in is Entity and Event — they are clearly irreducible and clearly distinct. The set I am least confident in is the Event/Assertion boundary, which I have drawn deliberately and would defend, but which is the one most likely to be revisited. If this ontology is wrong, it is probably wrong there. That is stated plainly so the next author knows exactly which seam to test first.
+
+---
+
+## 7. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-07-23 | REVIEW-001 §9 (executed at milestone M0) | §3.4 gains the Actor⟷Actor representation relationship (dual attribution; structure-by-Event), pointing to RFC-0002. §4 gains six challenge-log rows from the collaboration review. §6's Actor/Spatial-First flag marked discharged by RFC-0000 Amendment 1. The four primitives and both dimensions are untouched. |
+
+**User Experience Implications (Amendment 1).** *Projection:* nothing here surfaces as itself — a user experiences representation as "Maria works for the farm" and "the consultant's AI acted for the consultant," said exactly that way. *Concealment:* the grant machinery, attribution chains, and by-Event structure history are invisible; users see who did what, for whom. *Leak check:* no internal term needs surfacing; "representation" itself never appears in the product — only its plain effects. *Wholeness:* a worker who never learns that organizations are Actors loses nothing; the ontology's structure is fully consumable through ordinary signatures on ordinary records.
 
 ---
 
