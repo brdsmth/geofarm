@@ -2,7 +2,7 @@
 id: P-22
 title: projection load rehearsal
 parent: P-3
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0013

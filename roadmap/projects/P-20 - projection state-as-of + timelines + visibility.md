@@ -2,7 +2,7 @@
 id: P-20
 title: "projection: state-as-of + timelines + visibility"
 parent: P-3
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0003

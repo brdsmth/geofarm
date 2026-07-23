@@ -2,7 +2,7 @@
 id: P-21
 title: S6 red-team suite (leak-freedom)
 parent: P-3
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0002

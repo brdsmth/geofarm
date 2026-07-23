@@ -2,7 +2,7 @@
 id: P-18
 title: "access: grants, capabilities, attenuation"
 parent: P-3
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0002

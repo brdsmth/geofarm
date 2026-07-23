@@ -2,7 +2,7 @@
 id: P-19
 title: "access: sub-world computation"
 parent: P-3
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0002
