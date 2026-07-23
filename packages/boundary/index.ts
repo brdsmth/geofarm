@@ -13,8 +13,13 @@
 
 import type { AdmittedRecord, Area, CandidateRecord, Id } from "../world/index.ts";
 import { AdmissionRejected, type Journal } from "../journal/index.ts";
-import { AccessEngine } from "../access/index.ts";
+import { AccessEngine, matchesScope, type Scope } from "../access/index.ts";
 import { Projection, type Reading } from "../projection/index.ts";
+
+/** Scope match against a candidate's content dimensions, place unknown. */
+function matchesScopeLoose(record: AdmittedRecord, scope: Scope): boolean {
+  return matchesScope(record, scope, record.geometry);
+}
 
 export const PACKAGE = "@geofarm/boundary" as const;
 
@@ -94,6 +99,29 @@ export class Boundary {
 
     const subWorld = await this.access.subWorldAt(actor);
     const p = new Projection(this.journal, subWorld);
+
+    // Claimed representation must be held (RFC-0002 §1.4, I7): content
+    // authored on behalf of a principal will be principal-owned (RFC-0002
+    // §4.4), so the probe carries the claimed chain and must match a
+    // represent-holding *including* its ownership dimension — a self-
+    // holding covers only self-owned content and authorizes representing
+    // no one. (Single-link chains suffice for the MVP cast; per-link
+    // verification arrives with deeper chains — E6.)
+    if (candidate.actors.onBehalfOf.length > 0) {
+      const probe: AdmittedRecord = { ...candidate, seq: 0, knowledgeTime: subWorld.asOf };
+      const held = subWorld.holdings.some(
+        (h) =>
+          h.capabilities.includes("represent") &&
+          h.scopes.every((s) =>
+            // Region-bounded scopes resolve with the full authoring check
+            // below, where place is known.
+            s.region !== undefined ? true : matchesScopeLoose(probe, s),
+          ),
+      );
+      if (!held) {
+        return { accepted: false, reasons: ["acting for a principal requires representation"] };
+      }
+    }
 
     const subjectRecords: AdmittedRecord[] = [];
     for (const s of candidate.subjects) {
