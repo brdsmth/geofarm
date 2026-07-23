@@ -7,6 +7,7 @@
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
+| **Revised** | 2026-07-23 — Amendment 1 (per REVIEW-002; includes pending REVIEW-001 §9 items) |
 | **Supersedes** | — |
 | **Superseded by** | — |
 
@@ -34,11 +35,13 @@ The consequence is that the person who runs the farm is forced to be the integra
 
 The stakes of this framing are the entire product. A summarizing tool competes on features. A canonical model of reality competes on being *true* — and everything true about a farm begins with where it is.
 
+One clarification, added by amendment: the farm is not operated by one person. Owners, managers, operators, agronomists, consultants, contractors, seasonal crews, lenders, adjusters, machines, and AI agents all touch the same operation — and the canonical model is one world read through many bounded views of it, not a private tool multiplied. Every principle below is to be read in the plural. *(Amendment 1, per REVIEW-001.)*
+
 ---
 
 ## 2. The principles
 
-Five principles follow. They are ordered, because they build on each other. Spatial-First is the ground. Everything else stands on it.
+Six principles follow. The first five are ordered, because they build on each other: Spatial-First is the ground, and everything else stands on it. The sixth stands slightly apart — the first five say what the platform *is*; the sixth says what it must never *cost*.
 
 ### 2.1 Spatial First
 
@@ -51,6 +54,8 @@ Because location is universal, it is the only axis on which *everything* on a fa
 This is why Spatial-First is foundational rather than a feature. A system that treats space as one column among many will forever be reconciling its other columns by hand. A system that treats space as the organizing substrate gets coherence for free: things that are near each other, overlap each other, or contain each other are *relatable* without anyone declaring the relationship in advance.
 
 The commitment this principle demands is uncomfortable and deliberate: **nothing enters the model without a place.** If something matters to the farm, it has a location, even when that feels like extra work. Equipment has a location. A document about a field has a location. A recommendation is about somewhere. The moment we allow "important but placeless" objects, we have reintroduced the disconnected world we are trying to replace.
+
+One boundary, added by amendment: this commitment governs *world content* — what exists, happens, and is claimed on the farm. *Agency* — the people, organizations, services, and intelligences that act upon the world's model — may originate outside the world and carries no location by virtue of acting. The satellite provider is not on the farm; its data is. *(Amendment 1, executing the revision RFC-0001 §6 requested.)*
 
 ### 2.2 The map is the application
 
@@ -102,11 +107,29 @@ This orientation matters for three reasons, each connecting back to a principle 
 
 Event-driven is therefore not a technical style. It is the temporal expression of taking the farm seriously as something that unfolds.
 
+### 2.6 The system's complexity is never the user's
+
+*(Added by Amendment 1, per REVIEW-002.)*
+
+This platform is built for people who farm — people whose days are spent driving tractors, walking fields, repairing equipment, scouting crops, and coordinating crews. The architecture beneath them may become as sophisticated as the preceding principles demand. The experience above them must not. This is stated as an architectural invariant, not a stylistic hope:
+
+> **The complexity of the architecture MUST NOT determine the complexity of the user experience.**
+
+The ground of this principle is what the other five have already built. The user's mental model is meant to be *the farm itself* — place, time, weather, work, people, machines — which they already hold, expertly. Because the model corresponds to that reality (that was the entire point of principles one through five), presenting the model's content *is* presenting the farm: no metaphor layer, no training course in the system's concepts, no translation burden carried by the person in the field. The architecture is presentable to farmers precisely because it modeled reality instead of mechanism, and this principle exists to keep that achievement from being squandered at the surface.
+
+Three commitments make it enforceable:
+
+- **The vocabulary membrane.** The platform has two vocabularies. The internal one — frozen by the ontology and its successors — names the architecture and never crosses outward. The surface vocabulary is agriculture's own: fields, crops, records, readings, seasons, crews, shares, corrections. Every concept that surfaces must have a **faithful** projection into that language — faithful against both failure modes: no jargon (a concept a farmer cannot say in their own words may not surface as itself), and no euphemism (an approachable word may never promise more than the architecture delivers — a claim is not a "fact," an estimate is not "measured," and honesty about uncertainty, provenance, and staleness is translated into plain speech, never removed by it). A concept that *cannot* be projected faithfully is evidence of a design failure below the surface, and the design — not the vocabulary — is what gets revisited.
+- **Wholeness at every scale.** Every partial engagement with the platform is a complete product. A participant using one scope, two layers, and a single verb is not using a reduced or degraded edition; they are using a small, whole projection of the same world — nothing stubbed, nothing locked-looking, nothing that only makes sense once the rest is understood. A capability that is coherent only to someone who understands the entire system fails review. (What a person *may* do is governed by access; what is *foregrounded* for them is experience policy — the two must never be conflated, and this principle licenses no capability-by-caste.)
+- **The decoupling test.** At review, every future design answers one question in addition to §3's: *does benefiting from this require the user to understand the system, or only their farm?* A design that requires the system fails, regardless of its internal elegance.
+
+This principle deliberately abstains from everything downstream of it: no layouts, no workflows, no pacing, no interface design. It constrains what a user must *understand*, never what they see — that boundary is what keeps it architecture.
+
 ---
 
 ## 3. The meta-principle: coherence over convenience
 
-The five principles above are not a menu. They are a single stance viewed from five angles: **the farm is a real thing that exists in space and time, and the system's job is to model that reality faithfully and make it explorable.**
+The six principles above are not a menu. The first five are a single stance viewed from five angles: **the farm is a real thing that exists in space and time, and the system's job is to model that reality faithfully and make it explorable.** The sixth is that stance's obligation to its people: the modeling may be as deep as truth requires, and the person in the field pays none of its cost.
 
 This yields the rule that governs every RFC that follows this one:
 
@@ -117,6 +140,8 @@ The distinction is the whole point. It will almost always be possible to add a c
 So the burden of proof runs one direction only. A proposal does not earn its place by being possible or popular. It earns its place by making the farm *more* coherent as a spatial, historical, intelligible whole. When a decision is hard, the tiebreaker is not what ships fastest. It is what keeps the model true.
 
 Reviewers of future RFCs are expected to enforce this actively. "This works" is not sufficient. The question is always: **does this reinforce the principles, and if it appears to violate one, is the violation understood, named, and worth it?** Deviation is allowed. Silent deviation is not.
+
+By Amendment 1, the reviewer's questions gain a sibling from §2.6: *does this design require its user to understand the system rather than the farm?* — a failing answer sends the design back regardless of internal merit. And every future RFC, and every future amendment to an existing one, must close with a **User Experience Implications** section discharging the four checks REVIEW-002 §7 defines: the projection (the capability said in farm language), the concealment (what stays hidden), the leak check (what must surface, and through what faithful words), and the wholeness check (that partial engagement is complete).
 
 ---
 
@@ -147,6 +172,16 @@ A founding document should be willing to critique itself. The following are the 
 **On tone versus utility.** The document is written with conviction, and conviction can harden into dogma. The mitigation is built into Section 3: deviation is permitted when it is named and justified. This document is meant to be a strong prior, not a locked door. If a future RFC makes a compelling case that a principle is wrong for a real reason, the correct response is to amend RFC-0000 in the open — with a superseding revision — rather than to erode it silently. A constitution that cannot be amended is not respected; it is worked around.
 
 **What would make this document better.** It would be strengthened by a small number of concrete "smell tests" — recognizable anti-patterns that indicate a principle is being violated — so that reviewers have sharper instruments than judgment alone. Those are deliberately omitted here to avoid drifting toward design, but a future revision, once the ontology exists, could add them without breaking the abstention in Section 4.
+
+**On §2.6 (addendum, Amendment 1).** The sixth principle is this document's second experiential claim (after 2.2), and the risk that the constitution drifts product-ward is real. Its containment is its own abstention clause — it constrains what users must *understand*, never what they see — and the tripwire is explicit: the first RFC that cites §2.6 to argue about a screen has taken the principle beyond its cage, and REVIEW-002 is the reference for pushing it back. The principle's own gravest failure mode is also named there: euphemism drift, in which approachable words quietly overpromise. The membrane translates the platform's honesty; any use of §2.6 to *hide* uncertainty, provenance, or staleness is a violation of it, not an application.
+
+---
+
+## 6. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-07-23 | REVIEW-002 (and pending items from REVIEW-001 §9) | Added §2.6 (the system's complexity is never the user's: vocabulary membrane, wholeness at every scale, decoupling invariant). Extended §3 with the decoupling review question and the mandatory **User Experience Implications** section for future RFCs. Added the plural-operation paragraph to §1 and the world-content/agency boundary to §2.1 (executing REVIEW-001 §9's pending RFC-0000 revisions, the latter first requested by RFC-0001 §6). Added the §5 addendum on §2.6's containment. |
 
 ---
 
