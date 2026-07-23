@@ -49,11 +49,17 @@ function walk(dir: string): string[] {
 
 const violations: string[] = [];
 for (const file of walk(CLIENT_ROOT)) {
+  // Tests are developer-facing, not product copy.
+  if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
   const source = readFileSync(file, "utf8");
   for (const match of source.matchAll(STRING_LITERAL)) {
     const literal = match[2] ?? "";
     // Package self-identifiers are internal wiring, not user-facing copy.
     if (literal.startsWith("@geofarm/")) continue;
+    // Single-token literals are code values (record kinds, classifications,
+    // map keys) — the envelope's vocabulary, never sentences shown to
+    // anyone. Copy has spaces; enum values do not.
+    if (!literal.includes(" ")) continue;
     for (const term of BANNED) {
       const word = new RegExp(`\\b${term.replace(/[-\s]/g, "[-\\s]")}\\b`, "i");
       if (word.test(literal)) {

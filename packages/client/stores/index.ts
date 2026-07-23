@@ -37,7 +37,7 @@ export class ReadingStore {
 
   ingest(page: { records: AdmittedRecord[]; watermark: number }): void {
     if (page.watermark < this.watermark) {
-      throw new Error("knowledge only grows: refusing to move the watermark backward");
+      throw new Error("knowledge only grows: refusing to move backward");
     }
     for (const r of page.records) {
       this.records.push(r);
