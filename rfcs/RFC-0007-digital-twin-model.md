@@ -45,6 +45,8 @@ One thing the twin is **not**, and the exclusion is load-bearing: the twin is **
 
 **In:** all world content — every Entity, every Event, every Assertion. The fields and fences and machines; the rains and passes and readings; the diagnoses and estimates and recommendations. If it is placed, dated, and sourced, it is the twin. There is no second tier, no "core twin" versus "auxiliary data": a scouting photo and a surveyed boundary differ in importance, not in membership.
 
+*(Amendment 1, per REVIEW-001 §9.)* The twin is one, and no reader holds it whole: **every Actor reads the twin as a scoped projection of it** — their accessible sub-world (RFC-0002 §2.3), answered as if it were the whole. One twin, many scoped readings. The boundary this section draws therefore has two gates, not one: the **promotion gate** (below) governs what *enters* the twin; the **access dimension** governs what each reader's twin *contains for them*. Neither gate is visible in the other's terms, and neither replaces the other.
+
 **At the edge:** Actors. An Actor's *agency* is present throughout the twin — as the source on every Event, the author on every Assertion, the owner in every ownership relation — but the Actor *itself* is not farm content unless it also exists as an Entity on the farm (the machine, the person present — RFC-0001 §3.4's coincidence of roles). The satellite provider is in the twin only as provenance; the tractor is in it fully. This is the same seam RFC-0003 §1 and RFC-0004 §7 traced: the twin is a twin *of the world*, and agency may stand outside the world it acts on.
 
 **Out:** the apparatus of looking. Views, selections, lens stacks, ephemeral drawings, un-promoted measurements (RFC-0006) are not twin content — they are ways of *reading* the twin, disposable and private, corresponding to nothing on the farm. The gate between them is exactly RFC-0006's promotion gate: the moment a gesture is promoted — the circle becomes a zone, the measurement becomes a survey record — it crosses from apparatus into twin. The twin's boundary and the authorship gate are the same line seen from two sides.
@@ -131,6 +133,8 @@ The twin is always incomplete — a partial, lagging, unevenly sampled counterpa
 - **Sparseness is derivable.** Coverage is a spatial query (RFC-0003 §6) over the record itself: where soil samples cluster and where none exist; which parcels imagery visits weekly and which monthly; where no Observation of any kind has ever landed. The twin can render its own blind spots as readily as its knowledge — ignorance has geometry too.
 - **Uncertainty is carried.** Every inference states its confidence; every conclusion peels back to its evidence (§4); every predictor accrues a track record (§5). The twin does not merely hold claims — it holds how firmly each claim deserves to be held.
 
+*(Amendment 1.)* Ignorance, like everything read from the twin, is **actor-relative**: an Actor's blind-spot map is computed within their sub-world, so it shows where *their accessible record* runs out — never the silhouette of what access excludes. What lies beyond an Actor's scope is not "ignorance" to them; without the *discover* capability (RFC-0002 §3.1) it is simply absent, and the existence-versus-content distinction lands exactly here: a reader may know a thing exists without its content only where discover was granted, and otherwise may not know even that.
+
 So the honest answer to "what does the twin know?" is double: it knows what it holds and can derive, **and it knows — with places and dates — where its knowledge runs out.** For every consumer of the twin, human or AI, this second knowledge is as operative as the first: what the twin's account cannot support is as important as what it can, and the twin itself can say which is which. A "complete" twin is impossible; a twin *honest about the shape of its incompleteness* is buildable from the disciplines already frozen — and that honesty, not fidelity of imagery or density of sensors, is the property the word "twin" must be held to.
 
 ---
@@ -145,6 +149,7 @@ So the honest answer to "what does the twin know?" is double: it knows what it h
 - **Predictions are present claims about the future**, never future facts; the record grades them as their moments pass, and the twin accrues every predictor's track record.
 - **No present tense:** "current" is a distinguished projection, not a stored state; the twin cannot be out of date, only honest or dishonest about staleness.
 - **The twin knows its own ignorance:** staleness, sparseness, and uncertainty are derivable from the record — the twin can map its blind spots with the same machinery it maps its fields.
+- **One twin, many scoped readings** *(Amendment 1)*: no reader holds the twin whole; every Actor's twin is their sub-world, answered as if whole, with ignorance actor-relative and existence governed by *discover*.
 
 ---
 
@@ -163,6 +168,16 @@ So the honest answer to "what does the twin know?" is double: it knows what it h
 **The word "twin" itself.** The term imports expectations from manufacturing — high-frequency sensor sync, 3D geometry, simulation — that this model deliberately does not promise. What is defined here is closer to a *canonical historical counterpart* than an industrial twin. I have kept the word because the roadmap uses it and RFC-0000's vision matches its spirit, and §7 redefines its success criterion (honesty about incompleteness, not fidelity of mirroring) precisely to head off the imported expectations. If the term misleads more than it orients, renaming is cheap now and expensive later — a reviewer should decide deliberately, once.
 
 **Overall.** The claims I am most confident in are the boundary identification (twin edge = promotion gate) and the strata-as-derivations — both do real work with zero new machinery, which is this series' standard of correctness. The claim I am least confident in is that this document needed to exist as a separate RFC rather than as amendments — its best contents are consolidations, and consolidation RFCs risk becoming the genre that later authors cite instead of the sources. If this RFC is wrong, it is wrong as a *document* rather than as a model: right claims, arguable address. Stated plainly, so the next author knows this stone is about the map of the RFCs, not the map of the farm.
+
+---
+
+## 10. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-07-23 | REVIEW-001 §9 (executed at milestone M0) | §2: the twin's boundary gains the access dimension alongside the promotion gate — one twin, many scoped readings. §7: ignorance made actor-relative; the existence-versus-content distinction (discover capability) placed here. §8: the scoped-readings line added to the frozen model. |
+
+**User Experience Implications (Amendment 1).** *Projection:* every user still sees "the farm" — theirs is simply the farm as shared with them, and it looks whole because it is answered whole. *Concealment:* sub-world computation and the discover lattice are invisible; no one is shown a redaction. *Leak check:* no internal term surfaces — not "twin," not "sub-world," not "discover"; the map needs no name for being the map. *Wholeness:* an adjuster with a two-week scope over one hail event has a complete, honest little world — its blind-spot map is *their* map, and nothing in it gestures at what they cannot see.
 
 ---
 
