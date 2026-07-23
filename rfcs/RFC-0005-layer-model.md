@@ -44,6 +44,8 @@ Three things a Layer is emphatically **not**:
 - **Not stored truth.** A layer is a *definition* — a saved query plus an interpretation and a presentation intent. Turning that definition off changes nothing about the world. (Whether a saved layer definition is itself a shareable artifact with identity is a view-specification question, deferred to the interaction RFC that RFC-0003 §8 also foreshadowed.)
 - **Not a primitive.** It is a composition of scope, the derived-visibility machinery (RFC-0003 §6), projection-to-time (RFC-0004 §4), and optional derivation. Everything it is made of already exists.
 
+*(Amendment 1, per REVIEW-001 §9.)* One assumption in the four parameters is revised: a layer's projection is never taken over "the one world" unqualified — it is taken **by an Actor, within that Actor's accessible sub-world** (RFC-0002 §2.3). The layer's scope filters *within* what the viewer's access admits; nothing a lens selects can range above it. This changes no parameter's definition; it bounds the domain all four operate on.
+
 ---
 
 ## 2. Layers compose without reconciliation
@@ -63,6 +65,8 @@ Discussed as *presentation*, with the engine deferred: **what a layer presents i
 - the layer's **scope** (which content),
 - the current **visibility window** — the region of interest, a derived spatial query (RFC-0003 §6),
 - the current **temporal binding** — as-of a moment or across an interval (RFC-0004).
+
+*(Amendment 1.)* A prior term bounds all three: the viewer's **accessible sub-world** (RFC-0002 §2.3). The intersection is properly *access ∩ scope ∩ visibility ∩ time* — with access imposed before the lens ever selects, so that what a layer cannot reach for this viewer simply does not participate. "Layers compose without reconciliation" (§2) survives unchanged *per viewer*: each viewer's active lenses all resolve to the same accessible sub-world beneath them.
 
 What survives all three is what appears. It is either **raw** content the layer points at (equipment positions, scouting notes, a captured image) or **derived** content the layer computes and surfaces as Assertions (an NDVI surface, a yield estimate, an AI diagnosis). In both cases what is presented already exists in, or is derived from, the one world; the layer originates no content of its own. *How* that surviving content becomes marks on a surface — symbols, coverage, color — is the rendering engine's concern, named nowhere in this document by design.
 
@@ -94,6 +98,8 @@ A layer's scope (§1) is already a filter over the world; a viewer-applied filte
 Because provenance is intrinsic to every Event and Assertion (they carry their source Actor, RFC-0001), a first-class axis of filtering is *by source*: show only this agronomist's notes, only this satellite provider's imagery, only the AI's assertions, only human-authored recommendations. Confidence — intrinsic to Assertions — is another: show only high-confidence diagnoses. These are not special features; they are ordinary filters over intrinsic attributes.
 
 One thing is *not* a per-layer filter: the **temporal binding** (§6). Time is shared across the whole map, a single control moving all layers through the one history together, rather than each layer filtering time privately. This is the one place the layer-equals-filter unification has a seam, examined in §11.
+
+*(Amendment 1.)* The unification now extends one term further, per RFC-0002's theorem T1: **scope, filter, and layer are one operation in three roles** — *imposed* (an access scope, set by grant), *chosen* (a viewer's filter), and *named* (a layer definition). Same predicate form throughout; the roles differ in who sets them and what may override them: filters compose freely beneath scopes, and nothing composes above a scope.
 
 ---
 
@@ -186,6 +192,16 @@ A new kind of data — a pest model, a market-price surface, a carbon estimate, 
 **Do forecast layers violate RFC-0004's one history?** Weather and prediction layers present *future-dated* Assertions — claims about moments that have not occurred and are not in the recorded past. RFC-0004 §11 already flagged that the future is where time stops resembling space; this document inherits that strain rather than resolving it. A layer presenting the future is projecting claims about the unoccurred, which the "one shared history" framing accommodates only by treating forecasts as present-tense Assertions *about* future moments. That works, but it is the point where the layer model leans on a tension RFC-0004 left open.
 
 **Overall.** The claims I am most confident in are "layers are lenses, not containers" and "open because closed" — both fall directly out of frozen commitments and both do real architectural work. The claim I am least confident in is the computed-Assertion versus computed-presentation boundary (§7): it is essential, it is correct, and it is the hardest of all to enforce, because presentation is exactly where a claim can be smuggled in without an Assertion to carry it. If this layer model is wrong, it is probably wrong there — not in what it permits, but in what it cannot by itself prevent. Stated plainly, so the next author knows which stone to turn first.
+
+---
+
+## 12. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-07-23 | REVIEW-001 §9 (executed at milestone M0) | §1 and §3: every layer projection is taken by an Actor within their accessible sub-world; access bounds the presented-content intersection as a prior term; composition-without-reconciliation restated per-viewer. §5: the filter/layer unification extended to scope/filter/layer as one operation in three roles (imposed, chosen, named), per RFC-0002 T1. |
+
+**User Experience Implications (Amendment 1).** *Projection:* nothing new surfaces — a viewer still just sees their farm through the layers they turn on; what access excludes was never on their map to miss. *Concealment:* the access ∩ scope ∩ visibility ∩ time intersection and the sub-world rule are entirely invisible. *Leak check:* no term surfaces; "what's shared with me" is the only face access has, and it belongs to sharing flows, not layers. *Wholeness:* a viewer with two layers over one shared region has a complete map — nothing renders as locked, redacted, or missing-looking.
 
 ---
 
