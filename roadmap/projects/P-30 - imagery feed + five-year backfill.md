@@ -2,7 +2,7 @@
 id: P-30
 title: imagery feed + five-year backfill
 parent: P-5
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0011

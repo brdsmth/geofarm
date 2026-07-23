@@ -2,7 +2,7 @@
 id: P-31
 title: provenance & confidence filtering (L2)
 parent: P-5
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0005
