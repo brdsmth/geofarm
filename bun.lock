@@ -1,0 +1,96 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "geofarm",
+      "devDependencies": {
+        "@types/bun": "^1.2.0",
+        "typescript": "^5.6.0",
+      },
+    },
+    "packages/access": {
+      "name": "@geofarm/access",
+      "version": "0.0.0",
+    },
+    "packages/agent": {
+      "name": "@geofarm/agent",
+      "version": "0.0.0",
+    },
+    "packages/boundary": {
+      "name": "@geofarm/boundary",
+      "version": "0.0.0",
+    },
+    "packages/client/interaction": {
+      "name": "@geofarm/client-interaction",
+      "version": "0.0.0",
+    },
+    "packages/client/render": {
+      "name": "@geofarm/client-render",
+      "version": "0.0.0",
+    },
+    "packages/client/stores": {
+      "name": "@geofarm/client-stores",
+      "version": "0.0.0",
+    },
+    "packages/client/surface": {
+      "name": "@geofarm/client-surface",
+      "version": "0.0.0",
+    },
+    "packages/feeds/imagery": {
+      "name": "@geofarm/feeds-imagery",
+      "version": "0.0.0",
+    },
+    "packages/feeds/weather": {
+      "name": "@geofarm/feeds-weather",
+      "version": "0.0.0",
+    },
+    "packages/journal": {
+      "name": "@geofarm/journal",
+      "version": "0.0.0",
+    },
+    "packages/projection": {
+      "name": "@geofarm/projection",
+      "version": "0.0.0",
+    },
+    "packages/world": {
+      "name": "@geofarm/world",
+      "version": "0.0.0",
+    },
+  },
+  "packages": {
+    "@geofarm/access": ["@geofarm/access@workspace:packages/access"],
+
+    "@geofarm/agent": ["@geofarm/agent@workspace:packages/agent"],
+
+    "@geofarm/boundary": ["@geofarm/boundary@workspace:packages/boundary"],
+
+    "@geofarm/client-interaction": ["@geofarm/client-interaction@workspace:packages/client/interaction"],
+
+    "@geofarm/client-render": ["@geofarm/client-render@workspace:packages/client/render"],
+
+    "@geofarm/client-stores": ["@geofarm/client-stores@workspace:packages/client/stores"],
+
+    "@geofarm/client-surface": ["@geofarm/client-surface@workspace:packages/client/surface"],
+
+    "@geofarm/feeds-imagery": ["@geofarm/feeds-imagery@workspace:packages/feeds/imagery"],
+
+    "@geofarm/feeds-weather": ["@geofarm/feeds-weather@workspace:packages/feeds/weather"],
+
+    "@geofarm/journal": ["@geofarm/journal@workspace:packages/journal"],
+
+    "@geofarm/projection": ["@geofarm/projection@workspace:packages/projection"],
+
+    "@geofarm/world": ["@geofarm/world@workspace:packages/world"],
+
+    "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+
+    "@types/node": ["@types/node@26.1.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw=="],
+
+    "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+  }
+}
