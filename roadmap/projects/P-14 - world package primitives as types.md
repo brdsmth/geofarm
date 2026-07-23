@@ -2,7 +2,7 @@
 id: P-14
 title: "world package: primitives as types"
 parent: P-2
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0001

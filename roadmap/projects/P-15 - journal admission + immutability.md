@@ -2,7 +2,7 @@
 id: P-15
 title: "journal: admission + immutability"
 parent: P-2
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0004

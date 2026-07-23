@@ -2,7 +2,7 @@
 id: P-17
 title: walk + watermarks over chosen store
 parent: P-2
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0012
