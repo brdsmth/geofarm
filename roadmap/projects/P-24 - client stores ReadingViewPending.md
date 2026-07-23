@@ -2,7 +2,7 @@
 id: P-24
 title: "client stores: Reading/View/Pending"
 parent: P-4
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0014

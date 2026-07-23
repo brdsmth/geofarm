@@ -2,7 +2,7 @@
 id: P-23
 title: "boundary: Project/Append/walk contract"
 parent: P-4
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0012

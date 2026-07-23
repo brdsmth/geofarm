@@ -2,7 +2,7 @@
 id: P-27
 title: "time slider: temporal re-projection"
 parent: P-4
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0006

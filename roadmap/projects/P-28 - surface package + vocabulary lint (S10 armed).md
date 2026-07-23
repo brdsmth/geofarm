@@ -2,7 +2,7 @@
 id: P-28
 title: surface package + vocabulary lint (S10 armed)
 parent: P-4
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0000

@@ -2,7 +2,7 @@
 id: P-26
 title: "interaction: five verbs + promotion gate"
 parent: P-4
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0006
