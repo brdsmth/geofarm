@@ -1,0 +1,3 @@
+name: geofarm
+staleAfterDays: 30
+atRiskThreshold: 0.2
