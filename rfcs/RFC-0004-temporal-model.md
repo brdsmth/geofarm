@@ -1,13 +1,13 @@
-# RFC-0003 — Temporal Model
+# RFC-0004 — Temporal Model
 
 | | |
 |---|---|
-| **RFC** | 0003 |
+| **RFC** | 0004 |
 | **Title** | Temporal Model (Events & History) |
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
-| **Depends on** | RFC-0000, RFC-0001, RFC-0002 |
+| **Depends on** | RFC-0000, RFC-0001, RFC-0003 |
 | **Supersedes** | — |
 | **Superseded by** | — |
 
@@ -15,13 +15,13 @@
 
 ## 0. Purpose and method
 
-The ontology is frozen (RFC-0001) and the spatial dimension now has structure (RFC-0002). This document gives the **temporal** dimension the same treatment RFC-0002 gave the spatial one: it takes time — declared a *dimension, not a primitive* in RFC-0001 — and asks what the smallest coherent structure of that dimension is.
+The ontology is frozen (RFC-0001) and the spatial dimension now has structure (RFC-0003). This document gives the **temporal** dimension the same treatment RFC-0003 gave the spatial one: it takes time — declared a *dimension, not a primitive* in RFC-0001 — and asks what the smallest coherent structure of that dimension is.
 
-The method continues from RFC-0002, and so does a symmetry that will organize the entire document:
+The method continues from RFC-0003, and so does a symmetry that will organize the entire document:
 
-> RFC-0002 gave the world **one shared space**. This RFC gives the world **one shared history**.
+> RFC-0003 gave the world **one shared space**. This RFC gives the world **one shared history**.
 
-That parallel is not decoration. Nearly every temporal question below is answered the way its spatial twin was answered: the dimension is single and shared, positions in it are absolute rather than relative to a parent, and *relationships within it are derived, never declared.* Where RFC-0002 found that containment and adjacency fall out of geometry, this document finds that timelines fall out of history.
+That parallel is not decoration. Nearly every temporal question below is answered the way its spatial twin was answered: the dimension is single and shared, positions in it are absolute rather than relative to a parent, and *relationships within it are derived, never declared.* Where RFC-0003 found that containment and adjacency fall out of geometry, this document finds that timelines fall out of history.
 
 This RFC adds no primitives to the ontology. It discusses no storage and prescribes no event-sourcing mechanism. Whether the present is kept materialized or recomputed on demand, whether history is journaled one way or another — those are mechanism, deferred. What follows is only the conceptual model of how the farm exists in, and moves through, time.
 
@@ -50,11 +50,11 @@ RFC-0001 defined Event and froze it: a recorded, immutable, located, sourced occ
 
 Three things about its temporal nature:
 
-- **An Event has temporal extent, not merely a timestamp.** Just as geometry comes in forms by spatial dimension (position, path, area, volume — RFC-0002 §3), an occurrence comes in forms by temporal dimension: an **instant** (a reading, a gate opening) or an **interval** (a harvest across six hours, a drought across weeks, a growing season). The model must not assume every Event is instantaneous, or it forecloses the extended occurrences that fill a farm's real history.
+- **An Event has temporal extent, not merely a timestamp.** Just as geometry comes in forms by spatial dimension (position, path, area, volume — RFC-0003 §3), an occurrence comes in forms by temporal dimension: an **instant** (a reading, a gate opening) or an **interval** (a harvest across six hours, a drought across weeks, a growing season). The model must not assume every Event is instantaneous, or it forecloses the extended occurrences that fill a farm's real history.
 - **An Event is immutable once recorded.** What happened, happened; when it happened does not change. Our *knowledge* of it may grow — a later Event may correct or refine it — but the earlier record is never edited or removed. Correction is *addition*, never rewriting (RFC-0001 §3.2). This is the mechanism-free heart of "history is preserved" (RFC-0000 §2.4): the past is append-only.
 - **An Event is descriptive or performative.** Some Events *report* the world without changing it (a reading, a capture, a scouting note). Others *act upon* the world and change it (a planting, a spray, a boundary edit). This axis — does the occurrence *describe* state or *effect* it — is the distinction the next section rests on. It is a classification of Event, not a new primitive; the ontology already settled that (RFC-0001 §4).
 
-Temporal relationships between Events — before, after, during, overlapping — are, like their spatial cousins, **derived, not declared.** Order is read from the times; it is never stored as a fact about the Events. This is the temporal echo of RFC-0002 §5, and it recurs decisively in §9.
+Temporal relationships between Events — before, after, during, overlapping — are, like their spatial cousins, **derived, not declared.** Order is read from the times; it is never stored as a fact about the Events. This is the temporal echo of RFC-0003 §5, and it recurs decisively in §9.
 
 ---
 
@@ -81,12 +81,12 @@ This is the temporal model's center of gravity, and it has a clean answer.
 
 **What never changes — the invariants:**
 
-- **Identity.** The persistent handle from RFC-0001 and RFC-0002 §4. A field is the same field across every season, every boundary edit, every change of crop and owner. Identity is not a function of time; it is the axis along which time is measured for a thing.
+- **Identity.** The persistent handle from RFC-0001 and RFC-0003 §4. A field is the same field across every season, every boundary edit, every change of crop and owner. Identity is not a function of time; it is the axis along which time is measured for a thing.
 - **The recorded past.** Every Event, once entered, is fixed at its occurrence time. What happened, and when it happened, are immutable. Our account of the past may *grow* — corrections and late-arriving knowledge are added — but nothing already recorded is unmade.
 
 **What changes — the derivative:**
 
-- **State.** Everything we would call the "current" condition of a thing — its geometry (RFC-0002), its crop, its health, its ownership — is *not stored as truth and mutated.* It is **projected**: computed by taking the immutable Events that reference the thing and folding them forward to a chosen moment. "The field's current crop" is the result of projecting its planting and harvest Events up to now. Change the moment, and the projection changes; the Events do not.
+- **State.** Everything we would call the "current" condition of a thing — its geometry (RFC-0003), its crop, its health, its ownership — is *not stored as truth and mutated.* It is **projected**: computed by taking the immutable Events that reference the thing and folding them forward to a chosen moment. "The field's current crop" is the result of projecting its planting and harvest Events up to now. Change the moment, and the projection changes; the Events do not.
 - **Standing understanding.** The set of Assertions currently held is a projection too — the un-superseded claims as of a moment. It changes as new Assertions supersede old ones, while every prior claim remains in the record.
 
 So the temporal model reduces to a single sentence:
@@ -116,7 +116,7 @@ Revision, corrections, and superseded Assertions are therefore not exceptions to
 
 Yes — and answering otherwise is the most common way a temporal model goes wrong.
 
-A naive event-sourced instinct says no: an object *is* the fold of its Events, so before its first Event it does not exist; existence begins with a "creation" Event. This document rejects that instinct, on the authority of RFC-0001 and RFC-0002 §4, which made **identity primitive, not derived.** An Entity is not merely the accumulation of its Events; it is a persistent identity that Events are *about.* Events need a subject to attach to, and the subject cannot be conjured by the first Event that references it — it must already be there to be referenced.
+A naive event-sourced instinct says no: an object *is* the fold of its Events, so before its first Event it does not exist; existence begins with a "creation" Event. This document rejects that instinct, on the authority of RFC-0001 and RFC-0003 §4, which made **identity primitive, not derived.** An Entity is not merely the accumulation of its Events; it is a persistent identity that Events are *about.* Events need a subject to attach to, and the subject cannot be conjured by the first Event that references it — it must already be there to be referenced.
 
 The deeper reason is that **the world precedes the record.** A field that has existed for fifty years enters the model today; it was real, and located, for decades before any Event in our history mentions it. To insist it did not exist until our first Event is to confuse *the thing* with *our knowledge of the thing* — precisely the collapse §1 forbids. Its existence lives in occurrence time (since long ago); our first record of it lives in knowledge time (today).
 
@@ -132,15 +132,15 @@ Objects can exist before events. Events do not create objects; they record what 
 
 ## 7. Can events exist without geometry?
 
-Usually no, occasionally yes — and the exception is exactly the seam RFC-0001 §6 and RFC-0002 §1 already named.
+Usually no, occasionally yes — and the exception is exactly the seam RFC-0001 §6 and RFC-0003 §1 already named.
 
 An Event's relation to space takes one of three forms:
 
 - **Intrinsic geometry.** The occurrence has a shape of its own: a rainfall's extent, a harvest pass's path, a drone flight's line. The geometry belongs to the Event.
-- **Inherited geometry.** The occurrence has no shape of its own but happens *at* the things it references: a reading is located at its sensor, a spray at its field. Its "where" resolves through its references (by identity, per RFC-0002 §7), and may be the union of several (§8).
+- **Inherited geometry.** The occurrence has no shape of its own but happens *at* the things it references: a reading is located at its sensor, a spray at its field. Its "where" resolves through its references (by identity, per RFC-0003 §7), and may be the union of several (§8).
 - **No geometry.** The occurrence has neither its own shape nor any spatial referent: an organization is renamed, a data feed lapses, an Actor's credential changes.
 
-The third case is real but confined. It arises precisely when an Event concerns **agency rather than the world** — when it is about an Actor, which RFC-0002 §1 already exempted from geometry. Events *about the world* always have a place, intrinsic or inherited; only Events *about agency* may be placeless. This is not a new exception; it is the same crack running through the whole model wherever agency meets Spatial-First, inherited here rather than re-opened.
+The third case is real but confined. It arises precisely when an Event concerns **agency rather than the world** — when it is about an Actor, which RFC-0003 §1 already exempted from geometry. Events *about the world* always have a place, intrinsic or inherited; only Events *about agency* may be placeless. This is not a new exception; it is the same crack running through the whole model wherever agency meets Spatial-First, inherited here rather than re-opened.
 
 So: events can exist without geometry, but a placeless Event is a signal that the occurrence is not about the world at all.
 
@@ -152,7 +152,7 @@ Yes, without qualification, and the fact that this needs asking exposes the flaw
 
 A single spray covers three fields. A boundary adjustment moves land *between* two fields and references both. A drone flight passes over a dozen. An ownership transfer references the farm (its subject) and two organizations (its Actors). One occurrence is routinely *about* many things and *by* one or more.
 
-An Event therefore holds a **set of references** (RFC-0002 §7), by identity, of any size — the Entities it concerns and the Actors that caused or witnessed it. Its inherited geometry, when it has no intrinsic shape, is the union of its referents' geometries: the spray-on-three-fields is one Event over three areas, not three Events. There is no duplication, because the Event is one record pointing at several identities, not several records.
+An Event therefore holds a **set of references** (RFC-0003 §7), by identity, of any size — the Entities it concerns and the Actors that caused or witnessed it. Its inherited geometry, when it has no intrinsic shape, is the union of its referents' geometries: the spray-on-three-fields is one Event over three areas, not three Events. There is no duplication, because the Event is one record pointing at several identities, not several records.
 
 This has a consequence that the naive model cannot absorb: **an Event does not belong to any one of the objects it references.** The spray is not the first field's Event with copies filed under the other two. It is a single occurrence that concerns three fields equally and belongs to none of them. Which raises the question the whole document has been building toward.
 
@@ -169,19 +169,19 @@ The tempting arrangement — the one RFC-0000 §2.4 flagged and rejected — is 
 - **Objectless Events have no home.** An organization rename (§7) references no spatial object and so fits in no object's timeline at all.
 - **The whole cannot be reassembled.** "What happened on this farm in April" would require merging every object's private timeline back together — laboriously reconstructing the single history that per-object ownership tore apart in the first place.
 
-Every one of these is the same failure: **treating history as a property distributed across objects rather than as a dimension the objects share.** It is the exact mistake RFC-0002 refused in space — no thing carries its own coordinate system; all geometry lives in one shared frame, and spatial relationships are *derived* from it, never owned. Time is no different:
+Every one of these is the same failure: **treating history as a property distributed across objects rather than as a dimension the objects share.** It is the exact mistake RFC-0003 refused in space — no thing carries its own coordinate system; all geometry lives in one shared frame, and spatial relationships are *derived* from it, never owned. Time is no different:
 
 > **There is one history: the totality of Events across the whole world, ordered in the one shared time. Objects do not own timelines. An object's timeline is a *derived view* of the one history — the slice of it whose Events reference that object.**
 
-"The field's history" is not something the field holds; it is a *query* — the projection of the single history filtered to Events that name the field's identity. "The farm's history" is the same history under a wider filter; "what happened in this region in April" is the same history under a spatial-and-temporal filter (§2, RFC-0002 §6). Multi-object, between-object, and objectless Events all have exactly one natural home — the one history — and every per-object and whole-farm question is a different lens on it. Nothing is duplicated; nothing is orphaned; nothing must be reassembled, because it was never divided.
+"The field's history" is not something the field holds; it is a *query* — the projection of the single history filtered to Events that name the field's identity. "The farm's history" is the same history under a wider filter; "what happened in this region in April" is the same history under a spatial-and-temporal filter (§2, RFC-0003 §6). Multi-object, between-object, and objectless Events all have exactly one natural home — the one history — and every per-object and whole-farm question is a different lens on it. Nothing is duplicated; nothing is orphaned; nothing must be reassembled, because it was never divided.
 
-This is the temporal completion of Spatial-First. RFC-0002: one shared space, relationships derived. RFC-0003: one shared history, timelines derived. Space and time are the two coequal dimensions RFC-0000 promised — and in both, the dimension is single and shared, and everything relational within it is a projection, never a possession. Time is not an attribute of objects. **Time is a first-class architectural concern**, the second axis the whole world is embedded in.
+This is the temporal completion of Spatial-First. RFC-0003: one shared space, relationships derived. RFC-0004: one shared history, timelines derived. Space and time are the two coequal dimensions RFC-0000 promised — and in both, the dimension is single and shared, and everything relational within it is a projection, never a possession. Time is not an attribute of objects. **Time is a first-class architectural concern**, the second axis the whole world is embedded in.
 
 ---
 
 ## 10. The frozen temporal model
 
-Symmetric with RFC-0002's spatial summary.
+Symmetric with RFC-0003's spatial summary.
 
 - **Assumption — one shared time.** A single timeline in which every occurrence is placed and against which any two are ordered. Every occurrence carries two positions in it: **occurrence time** (when it was true in the world) and **knowledge time** (when the model came to hold it).
 - **Structure — the Event in time.** An Event is a recorded occurrence with temporal extent (instant or interval), immutable once entered, and either descriptive (an Observation, reporting the world) or performative (acting upon it). Temporal relationships — before, during, overlapping — are derived from the times, never declared.
@@ -210,8 +210,8 @@ The reduction, interrogated.
 
 **Does first-class time (§9) leave per-object history too weak?** By making an object's timeline a derived filter rather than a possession, I may have made the most common real query — "show me this field's history" — sound second-class, a mere projection of something grander. In practice it is the query users run most. I am confident the architecture is right (ownership fragments history and cannot absorb multi-object and objectless Events), but the document should not be read as deprioritizing per-object views; they are first-class *experiences* built on a first-class *history*, and the distinction between a derived view and an unimportant one must not be blurred. This is a framing risk, not an architectural one, but worth naming.
 
-**Overall.** The claims I am most confident in are the invariants (§4) and first-class time (§9) — both are clean, both complete a symmetry with RFC-0002 that has independent force, and both fall directly out of commitments already frozen. The claim I am least confident in is bitemporality (§1): it is either the most important idea here or the most over-built one, and which it is depends on how often the platform's real history separates what was true from what was known. If this temporal model is wrong, it is probably wrong there. Stated plainly, so the next author knows which stone to turn first.
+**Overall.** The claims I am most confident in are the invariants (§4) and first-class time (§9) — both are clean, both complete a symmetry with RFC-0003 that has independent force, and both fall directly out of commitments already frozen. The claim I am least confident in is bitemporality (§1): it is either the most important idea here or the most over-built one, and which it is depends on how often the platform's real history separates what was true from what was known. If this temporal model is wrong, it is probably wrong there. Stated plainly, so the next author knows which stone to turn first.
 
 ---
 
-*This RFC gives the temporal dimension its shape without adding to the vocabulary. With space (RFC-0002) and time (RFC-0003) both structured, the world is fully placed and dated; the RFCs that follow turn from what the world **is** to how it is **selected, layered, and reasoned over**.*
+*This RFC gives the temporal dimension its shape without adding to the vocabulary. With space (RFC-0003) and time (RFC-0004) both structured, the world is fully placed and dated; the RFCs that follow turn from what the world **is** to how it is **selected, layered, and reasoned over**.*

@@ -1,8 +1,8 @@
-# RFC-0002 — Spatial World Model
+# RFC-0003 — Spatial World Model
 
 | | |
 |---|---|
-| **RFC** | 0002 |
+| **RFC** | 0003 |
 | **Title** | Spatial World Model |
 | **Status** | Draft |
 | **Author** | Bradley |
@@ -101,7 +101,7 @@ A thing is not its shape. This is the most important thing the spatial model bor
 
 RFC-0001 gave Entity a *persistent identity* — a continuous subject that stays "the same thing" while its attributes change. Geometry is one of those attributes, and it is among the most changeable. Three consequences follow, and they discipline the entire model:
 
-- **Geometry changes; identity does not.** A field whose boundary is redrawn is the same field. The correction is an Event (RFC-0001 §3.2); the field's identity survives it untouched. "The geometry of a thing" is therefore always *its geometry as of a time* — geometry is time-varying, and the temporal mechanism that versions it belongs to RFC-0003. This document only insists that geometry be understood as a property that moves, never as the thing itself.
+- **Geometry changes; identity does not.** A field whose boundary is redrawn is the same field. The correction is an Event (RFC-0001 §3.2); the field's identity survives it untouched. "The geometry of a thing" is therefore always *its geometry as of a time* — geometry is time-varying, and the temporal mechanism that versions it belongs to RFC-0004. This document only insists that geometry be understood as a property that moves, never as the thing itself.
 - **Sameness of geometry is not sameness of thing.** A field and a management zone may occupy the identical area and remain two distinct things with two identities. Coincident geometry is common and carries no implication of identity. The map may show one outline; the model knows two subjects.
 - **A thing may hold different geometric forms for different concerns** (§3) without becoming several things, because identity, not shape, decides what is one.
 
@@ -133,7 +133,7 @@ Visibility is discussed here without a single mention of rendering, because — 
 
 > **Visibility is the set of things present within a region of interest.**
 
-Given any region of the shared space — a window someone is attending to — visibility is the derived answer to *"what is here?"*: every thing whose geometry intersects that region. It is another derived spatial relationship (§5), the intersection of the world's geometries with a query extent, and (once time enters, in RFC-0003) with a moment or interval as well: *what is here, and when.*
+Given any region of the shared space — a window someone is attending to — visibility is the derived answer to *"what is here?"*: every thing whose geometry intersects that region. It is another derived spatial relationship (§5), the intersection of the world's geometries with a query extent, and (once time enters, in RFC-0004) with a moment or interval as well: *what is here, and when.*
 
 This is the concept a rendering surface would later consume to decide what to draw, and the concept an AI would consume to know what it is looking at (RFC-0000 §2.3). But the concept itself is not drawing and not a viewport. It is spatial presence within a bounded region — computed, never stored, belonging to no single thing but arising from all of them against a query. Naming it here, free of any surface, is what lets later RFCs build surfaces on top of it without smuggling rendering into the model. (§10 asks whether "visibility" is truly distinct from the general spatial query of §5, or merely a name for one.)
 
@@ -210,4 +210,4 @@ A reduction should distrust its own tidiness. The pressure points, honestly.
 
 ---
 
-*This RFC gives the spatial dimension its shape without adding to the vocabulary. RFC-0003 gives the temporal dimension the same treatment — how geometry, and everything else, changes through time while history is preserved.*
+*This RFC gives the spatial dimension its shape without adding to the vocabulary. RFC-0004 gives the temporal dimension the same treatment — how geometry, and everything else, changes through time while history is preserved.*

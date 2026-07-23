@@ -1,13 +1,13 @@
-# RFC-0004 — Layer Model
+# RFC-0005 — Layer Model
 
 | | |
 |---|---|
-| **RFC** | 0004 |
+| **RFC** | 0005 |
 | **Title** | Layer Model |
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
-| **Depends on** | RFC-0000, RFC-0001, RFC-0002, RFC-0003 |
+| **Depends on** | RFC-0000, RFC-0001, RFC-0003, RFC-0004 |
 | **Supersedes** | — |
 | **Superseded by** | — |
 
@@ -15,9 +15,9 @@
 
 ## 0. Purpose and method
 
-RFC-0002 §8 deferred "Layer" to this document, with a verdict already half-written: a layer is *"a named, filtered selection of the world by classification and time, fully derivable from the four primitives."* It was denied primitive status there precisely so it could be given structure here without reopening the ontology.
+RFC-0003 §8 deferred "Layer" to this document, with a verdict already half-written: a layer is *"a named, filtered selection of the world by classification and time, fully derivable from the four primitives."* It was denied primitive status there precisely so it could be given structure here without reopening the ontology.
 
-This document keeps that promise. It defines the layer model and it adds **nothing** to the vocabulary. A layer is not a fifth primitive, not a container, not a place data lives. It is a *derived projection* — a lens — in exactly the sense that spatial relationships were derived in RFC-0002 and timelines were derived in RFC-0003. The pattern that has organized every RFC since RFC-0002 holds a third time:
+This document keeps that promise. It defines the layer model and it adds **nothing** to the vocabulary. A layer is not a fifth primitive, not a container, not a place data lives. It is a *derived projection* — a lens — in exactly the sense that spatial relationships were derived in RFC-0003 and timelines were derived in RFC-0004. The pattern that has organized every RFC since RFC-0003 holds a third time:
 
 > The world is single and shared. Everything relational, temporal, or presentational *about* it is a projection, never a possession.
 
@@ -35,14 +35,14 @@ It is defined by four parameters, and by nothing else:
 
 - **Scope** — *which* content the layer concerns: a filter over the one world by classification (soil, equipment, recommendation), by attribute, by provenance (which Actor is the source), by confidence, and optionally by a spatial or temporal restriction. Scope selects; it never copies. The content stays in the world.
 - **Interpretation** — whether the layer presents world content *directly* (raw Observations, Entities) or presents a *derivation* of it (a computed surface, an inferred region). When it derives, what it surfaces are Assertions (RFC-0001 §3.3) — the ontology already owns "derived meaning," so a computed layer invents no new kind of thing (§7).
-- **Temporal binding** — the moment or interval, drawn from the one shared history (RFC-0003), *as of* which the projection is taken. Every layer has one; there is no timeless layer (§6). The binding is usually shared across all active layers by a single time control, so the whole map moves through history together.
+- **Temporal binding** — the moment or interval, drawn from the one shared history (RFC-0004), *as of* which the projection is taken. Every layer has one; there is no timeless layer (§6). The binding is usually shared across all active layers by a single time control, so the whole map moves through history together.
 - **Presentation intent** — how the projected content should *read*: as discrete marks, a continuous field, symbols, categories. Enough to make the projection presentable — and no more. The engine that realizes it is deferred.
 
 Three things a Layer is emphatically **not**:
 
 - **Not a container.** Content is never "in" a layer. Entities, Events, and Assertions live in the one placed-and-dated world; a layer merely *points a lens* at some of them. Two layers may surface the same Assertion; it is not duplicated, because it was never held by either.
-- **Not stored truth.** A layer is a *definition* — a saved query plus an interpretation and a presentation intent. Turning that definition off changes nothing about the world. (Whether a saved layer definition is itself a shareable artifact with identity is a view-specification question, deferred to the interaction RFC that RFC-0002 §8 also foreshadowed.)
-- **Not a primitive.** It is a composition of scope, the derived-visibility machinery (RFC-0002 §6), projection-to-time (RFC-0003 §4), and optional derivation. Everything it is made of already exists.
+- **Not stored truth.** A layer is a *definition* — a saved query plus an interpretation and a presentation intent. Turning that definition off changes nothing about the world. (Whether a saved layer definition is itself a shareable artifact with identity is a view-specification question, deferred to the interaction RFC that RFC-0003 §8 also foreshadowed.)
+- **Not a primitive.** It is a composition of scope, the derived-visibility machinery (RFC-0003 §6), projection-to-time (RFC-0004 §4), and optional derivation. Everything it is made of already exists.
 
 ---
 
@@ -61,8 +61,8 @@ This is the direct cure for the disease RFC-0000 §1 named: disconnected tools w
 Discussed as *presentation*, with the engine deferred: **what a layer presents is its projection, intersected with what is currently visible and current in time.** Three restrictions compose:
 
 - the layer's **scope** (which content),
-- the current **visibility window** — the region of interest, a derived spatial query (RFC-0002 §6),
-- the current **temporal binding** — as-of a moment or across an interval (RFC-0003).
+- the current **visibility window** — the region of interest, a derived spatial query (RFC-0003 §6),
+- the current **temporal binding** — as-of a moment or across an interval (RFC-0004).
 
 What survives all three is what appears. It is either **raw** content the layer points at (equipment positions, scouting notes, a captured image) or **derived** content the layer computes and surfaces as Assertions (an NDVI surface, a yield estimate, an AI diagnosis). In both cases what is presented already exists in, or is derived from, the one world; the layer originates no content of its own. *How* that surviving content becomes marks on a surface — symbols, coverage, color — is the rendering engine's concern, named nowhere in this document by design.
 
@@ -70,14 +70,14 @@ What survives all three is what appears. It is either **raw** content the layer 
 
 ## 4. What is selectable
 
-Selection was defined in RFC-0002 §7 as a set of references *by identity*. The layer model inherits that and adds one sharp rule:
+Selection was defined in RFC-0003 §7 as a set of references *by identity*. The layer model inherits that and adds one sharp rule:
 
 **You select things in the world, never marks in a layer.** A layer determines *what is presentable and therefore reachable*, but a selection always resolves to identities in the one world — Entities, Events, Assertions — not to the layer's presentation of them. Selecting the same tractor through the equipment layer or through a recommendation that references it yields the same identity; the lens is not the target.
 
 Two kinds of content select differently:
 
 - **Discrete, identified content** — equipment, notes, recommendations — is selectable *as identities*. Picking it returns the world objects directly.
-- **Continuous content** — a satellite image, an NDVI or soil surface — has no discrete identities to pick. It is selectable *by location or region*: a spatial query (RFC-0002 §6) that resolves to the underlying Observations, samples, or Assertions at that place. You do not select "a pixel"; you select "here," and the model returns what is here.
+- **Continuous content** — a satellite image, an NDVI or soil surface — has no discrete identities to pick. It is selectable *by location or region*: a spatial query (RFC-0003 §6) that resolves to the underlying Observations, samples, or Assertions at that place. You do not select "a pixel"; you select "here," and the model returns what is here.
 
 Distinct from all of this is **layer control** — turning a layer on or off, adjusting its prominence, ordering it against others. That acts on the *lens*, not on the world, and must not be confused with selecting the content the lens reveals.
 
@@ -101,9 +101,9 @@ One thing is *not* a per-layer filter: the **temporal binding** (§6). Time is s
 
 The honest answer challenges the question: **all of it.** There is no atemporal layer.
 
-Because the world is dated (RFC-0003) and every layer is a projection *as of* a time, temporality is not a property some layers have and others lack — it is a property of the projection itself, and every layer is a projection. A boundary layer is boundaries *as of* a moment (boundaries move — RFC-0002 §4). An equipment layer is positions *as of* a moment (positions are projections of movement Events — RFC-0003). Even a base-imagery layer is imagery *from* a capture date.
+Because the world is dated (RFC-0004) and every layer is a projection *as of* a time, temporality is not a property some layers have and others lack — it is a property of the projection itself, and every layer is a projection. A boundary layer is boundaries *as of* a moment (boundaries move — RFC-0003 §4). An equipment layer is positions *as of* a moment (positions are projections of movement Events — RFC-0004). Even a base-imagery layer is imagery *from* a capture date.
 
-What differs across layers is not *whether* they are temporal but their **rate of change** — equipment shifts by the second, soil by the season, terrain by the decade. Rate is a description, not a category. The single shared time control (RFC-0003's one history) drives every layer at once: drag it, and satellite, crop, equipment, weather, and recommendations all move to the same moment together — the historical-imagery experience RFC-0000 promised, now general to every lens rather than special to imagery.
+What differs across layers is not *whether* they are temporal but their **rate of change** — equipment shifts by the second, soil by the season, terrain by the decade. Rate is a description, not a category. The single shared time control (RFC-0004's one history) drives every layer at once: drag it, and satellite, crop, equipment, weather, and recommendations all move to the same moment together — the historical-imagery experience RFC-0000 promised, now general to every lens rather than special to imagery.
 
 ---
 
@@ -120,15 +120,15 @@ A bright line runs through "computed," and it is the ontology's central boundary
 
 ## 8. What is static
 
-Nothing — and "static" should be retired as an architectural category, the way RFC-0002 retired "boundary" and RFC-0003 retired object-owned timelines.
+Nothing — and "static" should be retired as an architectural category, the way RFC-0003 retired "boundary" and RFC-0004 retired object-owned timelines.
 
-In a world that is event-driven (RFC-0000 §2.5) and wholly dated (RFC-0003), no content is static. What the question reaches for is real but is one of three other things, none of them a category of layer:
+In a world that is event-driven (RFC-0000 §2.5) and wholly dated (RFC-0004), no content is static. What the question reaches for is real but is one of three other things, none of them a category of layer:
 
 - **A pinned temporal binding.** The viewer has frozen the time control; the layer looks static because *they* stopped moving, not because the content cannot change.
 - **A low rate of change** (§6). Terrain and parcel boundaries change slowly enough to *feel* fixed, but they are projections as-of-a-time like everything else.
 - **A base-reference backdrop.** Imagery or terrain used chiefly for orientation, which a viewer treats as a stable ground for the lenses stacked over it — yet it too carries a capture date and can be moved through history.
 
-So "static" names a *viewing choice* or a *rate observation*, never a property of the world. The only things that genuinely never change are the invariants RFC-0003 already fixed — identity and the recorded past — and neither of those is a layer.
+So "static" names a *viewing choice* or a *rate observation*, never a property of the world. The only things that genuinely never change are the invariants RFC-0004 already fixed — identity and the recorded past — and neither of those is a layer.
 
 ---
 
@@ -138,10 +138,10 @@ The test of the model is that the required examples fit with no special cases, a
 
 | Layer | Content | Kind | Temporal character | Selectable as |
 |---|---|---|---|---|
-| **Satellite imagery** | raster Observation Events (area + payload, RFC-0002 §3.1) | raw | per capture-date; scrub through passes | location → the capture |
+| **Satellite imagery** | raster Observation Events (area + payload, RFC-0003 §3.1) | raw | per capture-date; scrub through passes | location → the capture |
 | **Weather** | station Observation Events; interpolated/forecast Assertions | raw + computed | fast; forecasts are future-dated Assertions | station identities; location for fields |
 | **Recommendations** | prescriptive Assertions (RFC-0001 §3.3) | computed | issued at a time, may be superseded; as-of shows the standing set | each recommendation's identity |
-| **Equipment** | Entity positions, projected from movement Events (RFC-0003) | raw (projected) | near-real-time | each machine's identity |
+| **Equipment** | Entity positions, projected from movement Events (RFC-0004) | raw (projected) | near-real-time | each machine's identity |
 | **Notes** | descriptive Observation Events with payload | raw | slow; filter by author (Actor) and time | each note's identity |
 | **Soil** | sample Observation Events; interpolated soil-map Assertion | raw + computed | very slow | sample identities; location for the surface |
 | **Yield** | harvest Observation Events (measured, path geometry); yield-surface Assertion | raw + computed | per season; drag across years | pass identities; location for the surface |
@@ -175,15 +175,15 @@ A new kind of data — a pest model, a market-price surface, a carbon estimate, 
 
 **Did I dissolve "Layer" so far that the document says nothing?** By reducing a layer to "a named filter plus an interpretation plus a time binding," I risk having explained the concept away. The residue that keeps it a real subject is presentation and composition: stacking order, prominence, blend, base-versus-overlay — the arrangement of multiple lenses over one world. I have gathered these under "presentation intent" and "layer control" and pushed their mechanics to rendering, but the line between *presentation intent* (mine to define) and *rendering* (deferred) is genuinely thin, and a reviewer could fairly say blend and opacity are presentation I have half-admitted while claiming to defer. I have kept only enough to make a projection *presentable*; whether that line holds is the model's softest boundary.
 
-**Is "a filter is an anonymous layer" too cute, and does its exception undermine it?** The unification (§5) is clean except for the temporal binding, which is shared across all layers rather than filtered per-layer — an exception large enough to question the whole equivalence. My defense is that time is a *dimension the world is embedded in* (RFC-0003), not an attribute of content, so binding time is categorically unlike filtering an attribute; the unification holds for content-filters and correctly excludes the dimensional bindings. But if a real need arises for per-layer time (comparing this field in 2021 against that field in 2024 on one map), the shared-time assumption breaks and §5's tidy equivalence with it. I think that need is real and coming, and this is the seam most likely to move.
+**Is "a filter is an anonymous layer" too cute, and does its exception undermine it?** The unification (§5) is clean except for the temporal binding, which is shared across all layers rather than filtered per-layer — an exception large enough to question the whole equivalence. My defense is that time is a *dimension the world is embedded in* (RFC-0004), not an attribute of content, so binding time is categorically unlike filtering an attribute; the unification holds for content-filters and correctly excludes the dimensional bindings. But if a real need arises for per-layer time (comparing this field in 2021 against that field in 2024 on one map), the shared-time assumption breaks and §5's tidy equivalence with it. I think that need is real and coming, and this is the seam most likely to move.
 
 **Is the computed-Assertion versus computed-presentation line (§7) actually holdable?** I drew a bright line — derivations that *claim* something new are Assertions; derivations that merely *redraw* existing content are presentation. It is the sharpest and most important distinction in the document, and it is also the most contestable, because "a density heatmap of notes" can be argued either way: it asserts nothing new, yet a viewer may read a real claim ("infestation is concentrated here") into it. If presentation can manufacture the *impression* of a claim without an Assertion behind it, the fact/inference boundary the whole ontology protects can be evaded through rendering. I believe the test (does the computation assert something new about reality?) is correct, but enforcing it is not this document's to guarantee, and a later RFC on AI reasoning or rendering must hold the line I have only drawn.
 
-**Was challenging the "static" question (§8) the right call or an evasion?** The task asked what is static and I answered "nothing," reframing the question rather than answering it on its terms. This is consistent with how RFC-0002 and RFC-0003 handled "boundary" and object-timelines, and I believe honesty outranks accommodation. But I concede base-reference backdrops are a genuinely useful notion that I have reframed rather than honored, and a reader who wanted a first-class "base layer" concept will find §8 dismissive. The reframing is correct; its tone may undersell a real need.
+**Was challenging the "static" question (§8) the right call or an evasion?** The task asked what is static and I answered "nothing," reframing the question rather than answering it on its terms. This is consistent with how RFC-0003 and RFC-0004 handled "boundary" and object-timelines, and I believe honesty outranks accommodation. But I concede base-reference backdrops are a genuinely useful notion that I have reframed rather than honored, and a reader who wanted a first-class "base layer" concept will find §8 dismissive. The reframing is correct; its tone may undersell a real need.
 
-**Does "layer" carry a 2D-cartographic metaphor that strains against the world model?** Stacking lenses is a planar image, and RFC-0002 admitted volumes. Layering volumetric content — soil horizons, airspace — strains the stacking intuition even though the projection framing survives intact. The concept is sound; the *word* imports a flatness the world does not have. I have kept "layer" for its familiarity, but flag that the metaphor, not the model, is what will creak in three dimensions.
+**Does "layer" carry a 2D-cartographic metaphor that strains against the world model?** Stacking lenses is a planar image, and RFC-0003 admitted volumes. Layering volumetric content — soil horizons, airspace — strains the stacking intuition even though the projection framing survives intact. The concept is sound; the *word* imports a flatness the world does not have. I have kept "layer" for its familiarity, but flag that the metaphor, not the model, is what will creak in three dimensions.
 
-**Do forecast layers violate RFC-0003's one history?** Weather and prediction layers present *future-dated* Assertions — claims about moments that have not occurred and are not in the recorded past. RFC-0003 §11 already flagged that the future is where time stops resembling space; this document inherits that strain rather than resolving it. A layer presenting the future is projecting claims about the unoccurred, which the "one shared history" framing accommodates only by treating forecasts as present-tense Assertions *about* future moments. That works, but it is the point where the layer model leans on a tension RFC-0003 left open.
+**Do forecast layers violate RFC-0004's one history?** Weather and prediction layers present *future-dated* Assertions — claims about moments that have not occurred and are not in the recorded past. RFC-0004 §11 already flagged that the future is where time stops resembling space; this document inherits that strain rather than resolving it. A layer presenting the future is projecting claims about the unoccurred, which the "one shared history" framing accommodates only by treating forecasts as present-tense Assertions *about* future moments. That works, but it is the point where the layer model leans on a tension RFC-0004 left open.
 
 **Overall.** The claims I am most confident in are "layers are lenses, not containers" and "open because closed" — both fall directly out of frozen commitments and both do real architectural work. The claim I am least confident in is the computed-Assertion versus computed-presentation boundary (§7): it is essential, it is correct, and it is the hardest of all to enforce, because presentation is exactly where a claim can be smuggled in without an Assertion to carry it. If this layer model is wrong, it is probably wrong there — not in what it permits, but in what it cannot by itself prevent. Stated plainly, so the next author knows which stone to turn first.
 

@@ -223,4 +223,4 @@ The task of a reduction is to be suspicious of its own result. Four is a satisfy
 
 ---
 
-*This RFC freezes the vocabulary. The primitives are Entity, Event, Assertion, and Actor. RFC-0002 begins to give the spatial half of that vocabulary its structure — without adding to it.*
+*This RFC freezes the vocabulary. The primitives are Entity, Event, Assertion, and Actor. RFC-0003 begins to give the spatial half of that vocabulary its structure — without adding to it.*
