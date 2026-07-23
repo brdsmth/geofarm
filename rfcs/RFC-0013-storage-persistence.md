@@ -4,7 +4,7 @@
 |---|---|
 | **RFC** | 0013 |
 | **Title** | Storage & Persistence |
-| **Status** | Draft |
+| **Status** | Approved |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
 | **Depends on** | RFC-0001, RFC-0002, RFC-0003, RFC-0004, RFC-0011, RFC-0012, RFC-0014, RFC-0015; PLAN-001 |

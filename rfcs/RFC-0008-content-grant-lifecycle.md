@@ -4,7 +4,7 @@
 |---|---|
 | **RFC** | 0008 |
 | **Title** | Content & Grant Lifecycle |
-| **Status** | Draft |
+| **Status** | Approved |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
 | **Depends on** | RFC-0001, RFC-0002, RFC-0004, RFC-0006, RFC-0007, RFC-0012, RFC-0014 |
