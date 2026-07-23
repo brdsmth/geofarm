@@ -2,7 +2,7 @@
 id: P-12
 title: Execute REVIEW-001 §9 revision pass
 parent: P-1
-status: planned
+status: done
 owner: bradley
 tags:
   - docs

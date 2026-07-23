@@ -2,7 +2,7 @@
 id: P-13
 title: Monorepo scaffold + CI green
 parent: P-1
-status: planned
+status: done
 owner: bradley
 tags:
   - infra

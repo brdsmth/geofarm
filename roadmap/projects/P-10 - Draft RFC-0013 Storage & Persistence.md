@@ -2,7 +2,7 @@
 id: P-10
 title: Draft RFC-0013 Storage & Persistence
 parent: P-1
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0013

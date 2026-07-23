@@ -2,7 +2,7 @@
 id: P-11
 title: Draft RFC-0008 Content & Grant Lifecycle
 parent: P-1
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0008
