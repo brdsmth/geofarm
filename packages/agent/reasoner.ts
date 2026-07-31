@@ -39,11 +39,14 @@ export class RuleReasoner {
     const out: ReasonerOutput[] = [];
     for (const entry of entries) {
       const live = standing(context, entry.claims);
-      const claims = entry.claims.filter((c) => live.has(c.id));
+      // Its own prior answers are track record, not material to re-echo.
+      const claims = entry.claims.filter(
+        (c) => live.has(c.id) && c.actors.actor !== context.agent,
+      );
 
       for (const claim of claims) {
         const body = claim.body as { finding?: string; text?: string } | undefined;
-        const what = body?.finding ?? body?.text ?? claim.classification;
+        const what = (body?.finding ?? body?.text ?? claim.classification).replace(/\.$/, "");
         out.push({
           type: "claim",
           classification: "reading",
@@ -59,10 +62,11 @@ export class RuleReasoner {
         const latest = entry.timeline[entry.timeline.length - 1];
         if (latest !== undefined) {
           const body = latest.body as { text?: string } | undefined;
+          const said = (body?.text ?? latest.classification).replace(/\.$/, "");
           out.push({
             type: "claim",
             classification: "reading",
-            text: `Nothing settled here yet; the latest note says: ${body?.text ?? latest.classification}.`,
+            text: `Nothing settled here yet; the latest note says: ${said}.`,
             subjects: [entry.id],
             evidence: [latest.id],
             confidence: 0.5,

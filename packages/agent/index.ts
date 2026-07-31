@@ -114,6 +114,9 @@ export type Neighborhood = {
 export type Turn = { ask: string; replies: Reply[] };
 
 export type AgentContext = {
+  /** Who is reasoning: the AI Actor's own identity, in view of itself —
+   * its prior claims in the Neighborhood are recognizably its own. */
+  agent: Id;
   frame: Frame;
   gesture: GestureStratum;
   neighborhood: Neighborhood;
@@ -188,6 +191,7 @@ export async function assembleContext(
   }
 
   return {
+    agent: agentActor,
     frame: { view, revealed },
     gesture: { selection: view.selection, regions: stores.gestures, ask },
     neighborhood: { conversable, records, entries },
