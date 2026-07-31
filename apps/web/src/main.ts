@@ -7,13 +7,22 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./app.css";
-import type { AdmittedRecord, Id } from "../../../packages/world/index.ts";
-import { story, work } from "../../../packages/client/surface/index.ts";
+import type { AdmittedRecord, Geometry, Id } from "../../../packages/world/index.ts";
+import { assistant as assistantCopy, claims, map as mapCopy, story, work } from "../../../packages/client/surface/index.ts";
+import {
+  AskEngagement,
+  viewerStores,
+  type CandidateAssertion,
+  type PeelNode,
+  type Reply,
+} from "../../../packages/agent/index.ts";
+import { RuleReasoner } from "../../../packages/agent/reasoner.ts";
 import { seedWorld, NOW } from "./seed.ts";
 import {
   boundsOf,
   createMap,
   pickableLayerIds,
+  setGestureData,
   setLensData,
   toFeatureCollections,
   type MarkFeatureProps,
@@ -30,6 +39,9 @@ const KIND_LABEL: Record<string, string> = {
   spray: "Spray",
   note: "Note",
   maintenance: "Maintenance",
+  diagnosis: "Diagnosis",
+  reading: "Answer",
+  anomaly: "Alert",
 };
 
 const LENSES = [
@@ -39,7 +51,18 @@ const LENSES = [
   {
     name: "work",
     label: "Notes & work",
-    filter: { classifications: ["planting", "harvest", "spray", "note", "maintenance"] },
+    filter: {
+      classifications: [
+        "planting",
+        "harvest",
+        "spray",
+        "note",
+        "maintenance",
+        "diagnosis",
+        "reading",
+        "anomaly",
+      ],
+    },
   },
 ];
 
@@ -70,9 +93,19 @@ function fmtDate(iso: string): string {
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 async function boot(): Promise<void> {
-  const { session, names } = await seedWorld();
+  const { session, names, boundary, assistant, org } = await seedWorld();
 
   for (const l of LENSES) session.reveal({ name: l.name, filter: l.filter, visible: true });
+
+  // The assistant, engaged inside this viewer's situation (RFC-0010): the
+  // engagement reads the live View + Pending + Reading; nothing is restated.
+  const engagement = new AskEngagement(
+    boundary,
+    assistant,
+    new RuleReasoner(),
+    viewerStores(session),
+    org,
+  );
 
   const map = createMap(el("map"));
   const describe = (id: Id): { name: string; kind: string } => {
@@ -121,7 +154,12 @@ async function boot(): Promise<void> {
       .map((h: AdmittedRecord) => {
         const who = names.get(h.actors.actor) ?? "";
         const text = (h.body as { text?: string } | undefined)?.text ?? KIND_LABEL[h.classification] ?? "";
-        return `<div class="row"><span class="when">${fmtDate(h.occurrence.start)}</span><span class="what">${text}</span><span class="who">${who}</span></div>`;
+        // A claim is not a fact (REVIEW-002): how-sure rides with it.
+        const sure =
+          h.kind === "assertion" && h.confidence !== undefined
+            ? ` <span class="sure">${claims.howSure(Math.round(h.confidence * 100))}</span>`
+            : "";
+        return `<div class="row"><span class="when">${fmtDate(h.occurrence.start)}</span><span class="what">${text}${sure}</span><span class="who">${who}</span></div>`;
       })
       .join("");
     const since =
@@ -155,8 +193,119 @@ async function boot(): Promise<void> {
       </form>
     </div>`;
 
+  // --------------------------------------------------- the Ask verb (M5)
+  // Circle-and-ask surfaced: the question is bare text; the situation —
+  // place, season, layers, selection, drawn regions — is the context the
+  // engagement already reads (RFC-0010 §2). Answers arrive with how-sure
+  // and what-it's-based-on attached, and keeping one is a deliberate act.
+  const askHtml = `<div class="ask">
+      <button id="ask-open">${assistantCopy.askAbout}</button>
+      <form id="ask-form" hidden>
+        <input id="ask-text" type="text" placeholder="${assistantCopy.askPlaceholder}" autocomplete="off" />
+        <button type="submit" id="ask-send">${assistantCopy.ask}</button>
+      </form>
+      <div id="ask-replies"></div>
+    </div>`;
+
+  const peelRows = (nodes: PeelNode[], depth = 0): string =>
+    nodes
+      .map((n) => {
+        const who = names.get(n.record.actors.actor) ?? "";
+        const text =
+          (n.record.body as { text?: string } | undefined)?.text ??
+          KIND_LABEL[n.record.classification] ??
+          "";
+        const grounds = n.grounds
+          .map(
+            (g) =>
+              `<div class="peel-row" style="margin-left:${(depth + 1) * 14}px">${claims.basedOn(g.source)}</div>`,
+          )
+          .join("");
+        return `<div class="peel-row" style="margin-left:${depth * 14}px"><span class="when">${fmtDate(n.record.occurrence.start)}</span> ${text} <span class="who">${who}</span></div>${grounds}${peelRows(n.evidence, depth + 1)}`;
+      })
+      .join("");
+
+  const renderReplies = async (replies: Reply[]): Promise<void> => {
+    const box = el<HTMLElement>("ask-replies");
+    const kept: CandidateAssertion[] = [];
+    const parts: string[] = [];
+    for (const r of replies) {
+      if (r.kind === "claim") {
+        const i = kept.push(r.claim) - 1;
+        const peel = await engagement.peel(r.claim);
+        parts.push(`<div class="reply">
+            <p>${r.claim.text}</p>
+            <div class="reply-meta">${claims.howSure(Math.round(r.claim.confidence * 100))} · ${names.get(assistant) ?? ""}</div>
+            <details class="peel"><summary>${claims.whatsThatBasedOn}</summary>${peelRows(peel)}</details>
+            <button class="keep" data-i="${i}">${assistantCopy.keepAnswer}</button>
+          </div>`);
+      } else if (r.kind === "reveal") {
+        parts.push(`<div class="reply">
+            <p>${r.text}</p>
+            <button class="show-it" data-ids="${r.about.join(",")}">${assistantCopy.showIt}</button>
+          </div>`);
+      } else {
+        parts.push(`<div class="reply"><p class="quiet">${r.text}</p></div>`);
+      }
+    }
+    box.innerHTML = parts.join("");
+    for (const b of box.querySelectorAll<HTMLButtonElement>("button.keep")) {
+      b.addEventListener("click", () => {
+        const claim = kept[Number(b.dataset.i)];
+        if (claim === undefined) return;
+        b.disabled = true;
+        void engagement.promote(claim).then(async (result) => {
+          if (!result.accepted) {
+            b.textContent = work.couldNotSend;
+            return;
+          }
+          await session.sync();
+          paint();
+          b.textContent = assistantCopy.keptAnswer;
+        });
+      });
+    }
+    for (const b of box.querySelectorAll<HTMLButtonElement>("button.show-it")) {
+      b.addEventListener("click", () => {
+        // Bringing-into-frame (RFC-0010 §4): reveal the lenses that show
+        // what the assistant is pointing at.
+        for (const id of (b.dataset.ids ?? "").split(",")) {
+          const record = session.reading.get(id as Id);
+          if (record === undefined) continue;
+          const lens = LENSES.find((l) => l.filter.classifications.includes(record.classification));
+          const state = session.view.lenses.find((l) => l.name === lens?.name);
+          if (lens !== undefined && state?.visible === false) {
+            session.toggle(lens.name);
+            lensButtons.get(lens.name)?.classList.add("on");
+          }
+        }
+        paint();
+        b.disabled = true;
+      });
+    }
+  };
+
+  const wireAsk = (): void => {
+    const openBtn = el<HTMLButtonElement>("ask-open");
+    const form = el<HTMLFormElement>("ask-form");
+    const text = el<HTMLInputElement>("ask-text");
+    openBtn.addEventListener("click", () => {
+      openBtn.hidden = true;
+      form.hidden = false;
+      text.focus();
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = text.value.trim();
+      if (q === "") return;
+      text.value = "";
+      void engagement.ask(q).then(renderReplies);
+    });
+  };
+
   const renderPanel = (id: Id): void => {
-    panelBody.innerHTML = storyOf(id) + composeHtml;
+    panelBody.innerHTML = storyOf(id) + askHtml + composeHtml;
+    wireAsk();
     const addBtn = el<HTMLButtonElement>("add-note");
     const form = el<HTMLFormElement>("compose-form");
     const text = el<HTMLTextAreaElement>("note-text");
@@ -189,7 +338,18 @@ async function boot(): Promise<void> {
     });
   };
 
+  // The one drawn indication at a time; ephemeral (second law).
+  let gestureId: string | undefined;
+  const dropGesture = (): void => {
+    if (gestureId !== undefined) {
+      session.pending.dropGesture(gestureId);
+      gestureId = undefined;
+      setGestureData(map, undefined);
+    }
+  };
+
   const openPanel = (id: Id): void => {
+    dropGesture();
     session.select([id]);
     renderPanel(id);
     panel.hidden = false;
@@ -198,13 +358,32 @@ async function boot(): Promise<void> {
   };
   const closePanel = (): void => {
     session.select([]);
+    dropGesture();
+    // The exchange evaporates with the engagement (RFC-0010 §2): what
+    // was worth keeping was promoted; the rest leaves no residue.
+    engagement.discard();
     panel.hidden = true;
     paint();
   };
   el("panel-close").addEventListener("click", closePanel);
 
+  // The circled corner (RFC-0006 §3): a drawn query region, panel-opened.
+  const openGesturePanel = (): void => {
+    session.select([]);
+    panelBody.innerHTML =
+      `<h2>${assistantCopy.circledArea}</h2>` +
+      `<div class="since">${mapCopy.drawToAsk}</div>` +
+      askHtml.replace(assistantCopy.askAbout, assistantCopy.askThisArea) +
+      `<div class="compose"><button id="gesture-drop">${mapCopy.letItGo}</button></div>`;
+    wireAsk();
+    el("gesture-drop").addEventListener("click", closePanel);
+    panel.hidden = false;
+    el("hint").hidden = true;
+  };
+
   // ----------------------------------------------------------- layer switcher
   const layersBox = el<HTMLElement>("layers");
+  const lensButtons = new Map<string, HTMLButtonElement>();
   for (const l of LENSES) {
     const b = document.createElement("button");
     b.textContent = l.label;
@@ -214,6 +393,7 @@ async function boot(): Promise<void> {
       b.classList.toggle("on");
       paint();
     });
+    lensButtons.set(l.name, b);
     layersBox.appendChild(b);
   }
 
@@ -282,6 +462,80 @@ async function boot(): Promise<void> {
     }
   });
 
+  // ------------------------------------------------------------ draw-to-ask
+  // Drawing is indication by default (RFC-0006 §3): one drag, one dashed
+  // region, one question. The rectangle is a gesture in Pending — real
+  // enough to ask about, ephemeral unless something it produced is kept.
+  const drawBtn = el<HTMLButtonElement>("draw-ask");
+  drawBtn.textContent = mapCopy.drawToAsk;
+  let drawing = false;
+  let justDrew = false;
+  let drawFrom: [number, number] | undefined;
+  const rectFrom = (
+    a: [number, number],
+    b: [number, number],
+  ): Extract<Geometry, { form: "area" }> => {
+    const w = Math.min(a[0], b[0]);
+    const e = Math.max(a[0], b[0]);
+    const s = Math.min(a[1], b[1]);
+    const n = Math.max(a[1], b[1]);
+    return {
+      form: "area",
+      rings: [
+        [
+          [w, s],
+          [e, s],
+          [e, n],
+          [w, n],
+          [w, s],
+        ],
+      ],
+    };
+  };
+  const exitDraw = (): void => {
+    drawing = false;
+    drawFrom = undefined;
+    map.dragPan.enable();
+    map.getCanvas().style.cursor = "";
+    drawBtn.classList.remove("on");
+  };
+  drawBtn.addEventListener("click", () => {
+    if (drawing) {
+      exitDraw();
+      return;
+    }
+    dropGesture();
+    drawing = true;
+    map.dragPan.disable();
+    map.getCanvas().style.cursor = "crosshair";
+    drawBtn.classList.add("on");
+  });
+  map.on("mousedown", (e) => {
+    if (!drawing) return;
+    drawFrom = [e.lngLat.lng, e.lngLat.lat];
+  });
+  map.on("mousemove", (e) => {
+    if (!drawing || drawFrom === undefined) return;
+    setGestureData(map, rectFrom(drawFrom, [e.lngLat.lng, e.lngLat.lat]));
+  });
+  map.on("mouseup", (e) => {
+    if (!drawing || drawFrom === undefined) return;
+    const geometry = rectFrom(drawFrom, [e.lngLat.lng, e.lngLat.lat]);
+    exitDraw();
+    justDrew = true;
+    const ring = geometry.rings[0] as [number, number][];
+    const tiny =
+      Math.abs((ring[0] as [number, number])[0] - (ring[2] as [number, number])[0]) < 1e-5 ||
+      Math.abs((ring[0] as [number, number])[1] - (ring[2] as [number, number])[1]) < 1e-5;
+    if (tiny) {
+      setGestureData(map, undefined); // a click, not a circle
+      return;
+    }
+    setGestureData(map, geometry);
+    gestureId = session.draw(geometry, NOW);
+    openGesturePanel();
+  });
+
   // --------------------------------------------------------- hover and pick
   const tooltip = el<HTMLElement>("tooltip");
   // Marks depend on the style, not the imagery: paint as soon as the
@@ -309,6 +563,10 @@ async function boot(): Promise<void> {
       }
     });
     map.on("click", (e) => {
+      if (drawing || justDrew) {
+        justDrew = false;
+        return; // the drag that drew a region is not a pick
+      }
       const features = map.queryRenderedFeatures(e.point, { layers: pickableLayerIds(lensNames) });
       const top = features[0];
       if (top !== undefined) {

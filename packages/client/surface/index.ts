@@ -78,6 +78,20 @@ export const story = {
   andMore: (what: string, n: number) => (n === 1 ? `${what} — and 1 more` : `${what} — and ${n} more`),
 };
 
+/** The assistant (RFC-0010 at the surface): asking, answers, their basis,
+ * and the deliberate act of keeping one. An answer is never bare — it
+ * always arrives with how-sure and what-it's-based-on within reach. */
+export const assistant = {
+  askAbout: "Ask about this",
+  askThisArea: "Ask about this area",
+  askPlaceholder: "What do you want to know?",
+  ask: "Ask",
+  circledArea: "Circled area",
+  keepAnswer: "Keep this answer",
+  keptAnswer: "Kept — it's part of the story now",
+  showIt: "Show it",
+};
+
 /** The work (drafts, submissions, admission). */
 export const work = {
   savedHere: "Saved on this device",

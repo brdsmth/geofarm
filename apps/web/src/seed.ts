@@ -24,6 +24,10 @@ function ring(pts: Coordinate[]): Coordinate[][] {
 export type SeededWorld = {
   session: Session;
   names: Map<Id, string>;
+  boundary: Boundary;
+  /** The AI Actor (RFC-0010 §1): scoped, attributed, a participant. */
+  assistant: Id;
+  org: Id;
 };
 
 export async function seedWorld(): Promise<SeededWorld> {
@@ -38,19 +42,24 @@ export async function seedWorld(): Promise<SeededWorld> {
   const maria = newId();
   const sam = newId();
 
+  // Introductions land farm-owned (RFC-0002 §4.4) so every member's
+  // Reading can put a name to a signature — a record whose author has no
+  // visible name is attributed in id only, which reads as anonymous.
   const actor = (id: Id, classification: string, name: string): CandidateRecord => ({
     id,
     kind: "actor",
     classification,
-    actors: { actor: id, onBehalfOf: [] },
+    actors: { actor: id, onBehalfOf: id === org ? [] : [org] },
     occurrence: { start: "2000-01-01T00:00:00Z" },
     subjects: [],
     body: { name },
   });
+  const assistant = newId();
   await journal.admit(actor(org, "organization", "Miller Farm"));
   await journal.admit(actor(you, "person", "You"));
   await journal.admit(actor(maria, "person", "Maria (agronomist)"));
   await journal.admit(actor(sam, "person", "Sam (operator)"));
+  await journal.admit(actor(assistant, "agent", "Farm assistant"));
 
   // Membership: everyone here acts for the farm (RFC-0002 §1.4).
   for (const person of [you, maria, sam]) {
@@ -64,6 +73,40 @@ export async function seedWorld(): Promise<SeededWorld> {
       body: { grantee: person, scope: {}, capabilities: ["represent"] },
     });
   }
+
+  // The assistant's standing (RFC-0002 §5.3): it represents the farm
+  // within a predicate scope — agronomy, never the books. Its Reach is
+  // what this grant admits; the people above see everything, so the
+  // Conversable ring in any engagement here is exactly this scope.
+  await journal.admit({
+    id: newId(),
+    kind: "event",
+    classification: "grant",
+    actors: { actor: org, onBehalfOf: [] },
+    occurrence: { start: "2026-01-01T00:00:00Z" },
+    subjects: [assistant],
+    body: {
+      grantee: assistant,
+      scope: {
+        classifications: [
+          "farm",
+          "field",
+          "pond",
+          "building",
+          "road",
+          "planting",
+          "harvest",
+          "spray",
+          "note",
+          "maintenance",
+          "diagnosis",
+          "reading",
+          "anomaly",
+        ],
+      },
+      capabilities: ["represent"],
+    },
+  });
 
   const entity = (
     classification: string,
@@ -207,6 +250,13 @@ export async function seedWorld(): Promise<SeededWorld> {
     body: { text },
   });
 
+  const yellowing = event(
+    "note",
+    creek.id,
+    "2026-06-20T00:00:00Z",
+    "Yellowing along the drainage line",
+    maria,
+  );
   const history: CandidateRecord[] = [
     event("planting", north80.id, "2024-05-02T00:00:00Z", "Planted corn"),
     event("planting", creek.id, "2024-05-04T00:00:00Z", "Planted soybeans"),
@@ -218,12 +268,27 @@ export async function seedWorld(): Promise<SeededWorld> {
     event("planting", creek.id, "2026-05-08T00:00:00Z", "Planted corn"),
     event("planting", home.id, "2026-05-12T00:00:00Z", "Planted soybeans"),
     event("spray", north80.id, "2026-06-11T00:00:00Z", "Sprayed — post-emerge pass"),
-    event("note", creek.id, "2026-06-20T00:00:00Z", "Yellowing along the drainage line", maria),
+    yellowing,
     event("note", bottom.id, "2026-06-24T00:00:00Z", "Standing water at the north end", maria),
     event("note", west40.id, "2026-06-27T00:00:00Z", "New line looks right after the survey", you),
     event("maintenance", barn.id, "2026-03-14T00:00:00Z", "Serviced the planter", sam),
   ];
   for (const h of history) await journal.admit(h);
+
+  // Maria's read on the yellowing: a claim with its basis attached, so
+  // the assistant's answers have somewhere real to peel back to
+  // (RFC-0009 §5 — nothing here "just knows").
+  await journal.admit({
+    id: newId(),
+    kind: "assertion",
+    classification: "diagnosis",
+    actors: { actor: maria, onBehalfOf: [org] },
+    occurrence: { start: "2026-06-22T00:00:00Z" },
+    subjects: [creek.id],
+    evidence: [yellowing.id],
+    confidence: 0.7,
+    body: { text: "Nitrogen running short along the drainage line" },
+  });
 
   const boundary = new Boundary(journal);
   const session = new Session(you, boundary, new PendingStore(new MemoryPersistence()), NOW);
@@ -234,5 +299,5 @@ export async function seedWorld(): Promise<SeededWorld> {
     const n = (r.body as { name?: string } | undefined)?.name;
     if (n !== undefined) names.set(r.id, n);
   }
-  return { session, names };
+  return { session, names, boundary, assistant, org };
 }

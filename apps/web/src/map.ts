@@ -79,7 +79,9 @@ export function toFeatureCollections(
   for (const m of marks) {
     const id = m.presents[0] as Id;
     const { name, kind } = describe(id);
-    const pointy = kind === "event" && m.geometry.form !== "position";
+    // Events and claims with area-shaped inherited place render as dots;
+    // only entities own their outline on the map.
+    const pointy = kind !== "entity" && m.geometry.form !== "position";
     const geometry = pointy
       ? ({ type: "Point", coordinates: centroidOf(m.geometry) } as GeoJSON.Geometry)
       : toGeoJSONGeometry(m.geometry);
@@ -253,6 +255,32 @@ export function setLensData(
     const source = map.getSource(lens) as ML.GeoJSONSource;
     source.setData(collections.get(lens) ?? { type: "FeatureCollection", features: [] });
   }
+}
+
+/** The drawn indication (RFC-0006 §3): an ephemeral query region, painted
+ * as apparatus — dashed, white, unmistakably not content. */
+export function setGestureData(map: ML.Map, geometry: Geometry | undefined): void {
+  if (map.getSource("gesture") === undefined) {
+    map.addSource("gesture", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "gesture-fill",
+      type: "fill",
+      source: "gesture",
+      paint: { "fill-color": "#ffffff", "fill-opacity": 0.08 },
+    });
+    map.addLayer({
+      id: "gesture-line",
+      type: "line",
+      source: "gesture",
+      paint: { "line-color": "#ffffff", "line-width": 2, "line-dasharray": [1.5, 1.5] },
+    });
+  }
+  const source = map.getSource("gesture") as ML.GeoJSONSource;
+  source.setData(
+    geometry === undefined
+      ? { type: "FeatureCollection", features: [] }
+      : { type: "Feature", geometry: toGeoJSONGeometry(geometry), properties: {} },
+  );
 }
 
 export function pickableLayerIds(allLenses: string[]): string[] {
