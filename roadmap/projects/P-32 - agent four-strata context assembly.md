@@ -2,7 +2,7 @@
 id: P-32
 title: "agent: four-strata context assembly"
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0010

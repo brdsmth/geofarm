@@ -2,7 +2,7 @@
 id: P-34
 title: "agent: evidence peel-back (S8)"
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0009

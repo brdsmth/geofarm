@@ -2,7 +2,7 @@
 id: P-36
 title: "agent: autonomous anomaly job (A4)"
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0010

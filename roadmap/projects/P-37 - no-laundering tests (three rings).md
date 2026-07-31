@@ -2,7 +2,7 @@
 id: P-37
 title: no-laundering tests (three rings)
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0010

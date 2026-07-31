@@ -2,7 +2,7 @@
 id: P-35
 title: "agent: answer promotion (A3)"
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0010

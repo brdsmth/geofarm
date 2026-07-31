@@ -2,7 +2,7 @@
 id: P-33
 title: "agent: circle-and-ask (S7)"
 parent: P-6
-status: planned
+status: done
 owner: bradley
 tags:
   - rfc-0010
