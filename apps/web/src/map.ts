@@ -14,11 +14,13 @@ import type { Mark } from "../../../packages/client/render/index.ts";
 // CJS/ESM interop: bundlers may surface the UMD build under .default.
 const maplibregl: typeof ML = ((ML as { default?: typeof ML }).default ?? ML) as typeof ML;
 
-export const LENS_STYLE: Record<string, { color: string }> = {
-  fields: { color: "#7ddf64" },
-  boundary: { color: "#ffd166" },
-  places: { color: "#5bc8f5" },
-  work: { color: "#f79ad3" },
+/** Per-lens paint. The farm line is a line (REVIEW-003 §4.1): a lens with
+ * `fill: false` never washes the ground it outlines. */
+export const LENS_STYLE: Record<string, { color: string; fill: boolean }> = {
+  fields: { color: "#7ddf64", fill: true },
+  boundary: { color: "#ffd166", fill: false },
+  places: { color: "#5bc8f5", fill: true },
+  work: { color: "#f79ad3", fill: true },
 };
 
 function toGeoJSONGeometry(g: Geometry): GeoJSON.Geometry {
@@ -51,16 +53,29 @@ function centroidOf(g: Geometry): [number, number] {
   return [lon, lat];
 }
 
-export type MarkFeatureProps = { id: string; lens: string; name: string; kind: string };
+export type MarkFeatureProps = {
+  id: string;
+  lens: string;
+  name: string;
+  kind: string;
+  selected: boolean;
+  /** Coincident marks aggregated here (REVIEW-003 A2): count is always
+   * visible at N ≥ 2 — invisible stacking is a sparsity-trust violation. */
+  count: number;
+};
 
 /** Marks → per-lens FeatureCollections. Events with area-shaped inherited
  * place render as points at the centroid — presentation, not a claim
- * (RFC-0005 §7): the record's true place stays whatever the Reading says. */
+ * (RFC-0005 §7): the record's true place stays whatever the Reading says.
+ * Coincident points aggregate into one feature carrying every id and a
+ * visible count; selection rides along so the engine can show attention. */
 export function toFeatureCollections(
   marks: Mark[],
   describe: (id: Id) => { name: string; kind: string },
+  selection: readonly Id[] = [],
 ): Map<string, GeoJSON.FeatureCollection> {
   const byLens = new Map<string, GeoJSON.Feature[]>();
+  const stacks = new Map<string, GeoJSON.Feature>();
   for (const m of marks) {
     const id = m.presents[0] as Id;
     const { name, kind } = describe(id);
@@ -68,7 +83,30 @@ export function toFeatureCollections(
     const geometry = pointy
       ? ({ type: "Point", coordinates: centroidOf(m.geometry) } as GeoJSON.Geometry)
       : toGeoJSONGeometry(m.geometry);
-    const props: MarkFeatureProps = { id, lens: m.lens, name, kind };
+    const props: MarkFeatureProps = {
+      id,
+      lens: m.lens,
+      name,
+      kind,
+      selected: selection.includes(id),
+      count: 1,
+    };
+    if (geometry.type === "Point") {
+      const key = `${m.lens}:${geometry.coordinates.map((c) => c.toFixed(5)).join(",")}`;
+      const stacked = stacks.get(key);
+      if (stacked !== undefined) {
+        const sp = stacked.properties as MarkFeatureProps;
+        sp.count += 1;
+        sp.selected = sp.selected || props.selected;
+        continue;
+      }
+      const feature: GeoJSON.Feature = { type: "Feature", geometry, properties: props };
+      stacks.set(key, feature);
+      const list = byLens.get(m.lens) ?? [];
+      list.push(feature);
+      byLens.set(m.lens, list);
+      continue;
+    }
     const list = byLens.get(m.lens) ?? [];
     list.push({ type: "Feature", geometry, properties: props });
     byLens.set(m.lens, list);
@@ -83,6 +121,7 @@ export function createMap(container: HTMLElement): ML.Map {
     container,
     style: {
       version: 8,
+      glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       sources: {
         satellite: {
           type: "raster",
@@ -102,33 +141,41 @@ export function createMap(container: HTMLElement): ML.Map {
         },
       ],
     },
-    center: [-93.182, 41.514],
-    zoom: 13.1,
+    center: [-93.1927, 41.5153],
+    zoom: 13.6,
     attributionControl: { compact: true },
   });
 }
 
 export const PICKABLE = ["fill", "line", "point"] as const;
 
+const SELECTED = ["to-boolean", ["get", "selected"]] as unknown as ML.ExpressionSpecification;
+const STACKED = [">=", ["get", "count"], 2] as unknown as ML.ExpressionSpecification;
+
 export function ensureLensLayers(map: ML.Map, lens: string): void {
   if (map.getSource(lens) !== undefined) return;
-  const color = LENS_STYLE[lens]?.color ?? "#ffffff";
+  const style = LENS_STYLE[lens] ?? { color: "#ffffff", fill: true };
+  const color = style.color;
   map.addSource(lens, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({
-    id: `${lens}-fill`,
-    type: "fill",
-    source: lens,
-    filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "fill-color": color, "fill-opacity": 0.14 },
-  });
+  if (style.fill) {
+    // Selection is shared attention (RFC-0006 §3): the attended polygon
+    // brightens so the map shows what the panel is talking about.
+    map.addLayer({
+      id: `${lens}-fill`,
+      type: "fill",
+      source: lens,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: { "fill-color": color, "fill-opacity": ["case", SELECTED, 0.34, 0.14] },
+    });
+  }
   map.addLayer({
     id: `${lens}-line`,
     type: "line",
     source: lens,
     filter: ["in", ["geometry-type"], ["literal", ["Polygon", "LineString"]]],
     paint: {
-      "line-color": color,
-      "line-width": lens === "boundary" ? 2.5 : 2,
+      "line-color": ["case", SELECTED, "#ffffff", color],
+      "line-width": ["case", SELECTED, 4, lens === "boundary" ? 2.5 : 2],
       ...(lens === "boundary" ? { "line-dasharray": [2, 2] } : {}),
     },
   });
@@ -139,9 +186,58 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
       "circle-color": color,
-      "circle-radius": 6,
-      "circle-stroke-color": "#0b1a10",
+      "circle-radius": ["case", STACKED, 9, ["case", SELECTED, 8, 6]],
+      "circle-stroke-color": ["case", SELECTED, "#ffffff", "#0b1a10"],
       "circle-stroke-width": 2,
+    },
+  });
+  // The count badge (REVIEW-003 A2): coincident marks may share a dot,
+  // but never invisibly — sparsity on screen must be trustworthy.
+  map.addLayer({
+    id: `${lens}-count`,
+    type: "symbol",
+    source: lens,
+    filter: ["all", ["==", ["geometry-type"], "Point"], STACKED],
+    layout: {
+      "text-field": ["to-string", ["get", "count"]],
+      "text-font": ["Open Sans Semibold"],
+      "text-size": 11,
+      "text-allow-overlap": true,
+    },
+    paint: {
+      "text-color": "#0b1a10",
+    },
+  });
+}
+
+/** Identity outranks geometry (REVIEW-003 §4.2): entities carry their
+ * names on the map itself, not behind a hover. Label layers are added
+ * after every mark layer so names win the collision pass, and anchors
+ * are variable so a name slides off a dot rather than vanishing. */
+export function ensureLensLabels(map: ML.Map, lens: string): void {
+  if (map.getLayer(`${lens}-label`) !== undefined) return;
+  map.addLayer({
+    id: `${lens}-label`,
+    type: "symbol",
+    source: lens,
+    filter: [
+      "all",
+      ["!=", ["get", "kind"], "event"],
+      ["in", ["geometry-type"], ["literal", ["Polygon", "Point"]]],
+    ],
+    layout: {
+      "text-field": ["get", "name"],
+      "text-font": ["Open Sans Semibold"],
+      "text-size": lens === "fields" ? 14 : 12,
+      "text-padding": 6,
+      "text-variable-anchor":
+        lens === "fields" ? ["center", "top", "bottom", "left", "right"] : ["top", "bottom", "left", "right"],
+      "text-radial-offset": lens === "fields" ? 1.2 : 0.8,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "#0b1a10",
+      "text-halo-width": 1.4,
     },
   });
 }
@@ -151,15 +247,18 @@ export function setLensData(
   collections: Map<string, GeoJSON.FeatureCollection>,
   allLenses: string[],
 ): void {
+  for (const lens of allLenses) ensureLensLayers(map, lens);
+  for (const lens of allLenses) ensureLensLabels(map, lens);
   for (const lens of allLenses) {
-    ensureLensLayers(map, lens);
     const source = map.getSource(lens) as ML.GeoJSONSource;
     source.setData(collections.get(lens) ?? { type: "FeatureCollection", features: [] });
   }
 }
 
 export function pickableLayerIds(allLenses: string[]): string[] {
-  return allLenses.flatMap((l) => PICKABLE.map((k) => `${l}-${k}`));
+  return allLenses.flatMap((l) =>
+    PICKABLE.filter((k) => k !== "fill" || (LENS_STYLE[l]?.fill ?? true)).map((k) => `${l}-${k}`),
+  );
 }
 
 export function boundsOf(g: Geometry): [[number, number], [number, number]] {

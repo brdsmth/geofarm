@@ -67,6 +67,17 @@ export const map = {
   letItGo: "Let it go",
 };
 
+/** The story panel (inspection in place, RFC-0006 §5; REVIEW-003 A3 —
+ * the panel names its temporal frame instead of silently ignoring it). */
+export const story = {
+  asOf: (when: string) => `As of ${when}`,
+  addNote: "Add a note",
+  notePlaceholder: "What's happening here?",
+  keepNote: "Add it to the story",
+  neverMind: "Never mind",
+  andMore: (what: string, n: number) => (n === 1 ? `${what} — and 1 more` : `${what} — and ${n} more`),
+};
+
 /** The work (drafts, submissions, admission). */
 export const work = {
   savedHere: "Saved on this device",

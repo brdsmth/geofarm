@@ -8,6 +8,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./app.css";
 import type { AdmittedRecord, Id } from "../../../packages/world/index.ts";
+import { story, work } from "../../../packages/client/surface/index.ts";
 import { seedWorld, NOW } from "./seed.ts";
 import {
   boundsOf,
@@ -81,7 +82,7 @@ async function boot(): Promise<void> {
 
   const lensNames = LENSES.map((l) => l.name);
   const paint = (): void => {
-    setLensData(map, toFeatureCollections(session.marks(), describe), lensNames);
+    setLensData(map, toFeatureCollections(session.marks(), describe, session.view.selection), lensNames);
   };
   // Dev console handle — not UI, not state (the stores stay the three).
   (window as unknown as Record<string, unknown>).__geofarm = { session, map, paint };
@@ -90,7 +91,7 @@ async function boot(): Promise<void> {
   type Saved = { center: [number, number]; zoom: number; season: number };
   const saved: Saved | undefined = (() => {
     try {
-      const raw = localStorage.getItem("geofarm-view");
+      const raw = localStorage.getItem("geofarm-view-2");
       return raw === null ? undefined : (JSON.parse(raw) as Saved);
     } catch {
       return undefined;
@@ -99,7 +100,7 @@ async function boot(): Promise<void> {
   const remember = (): void => {
     const c = map.getCenter();
     localStorage.setItem(
-      "geofarm-view",
+      "geofarm-view-2",
       JSON.stringify({ center: [c.lng, c.lat], zoom: map.getZoom(), season: seasonInput.valueAsNumber }),
     );
   };
@@ -127,19 +128,78 @@ async function boot(): Promise<void> {
       r.kind === "entity"
         ? `<div class="since">${kindLabel} · here since ${new Date(r.occurrence.start).getFullYear()}</div>`
         : `<div class="since">${kindLabel} · ${fmtDate(r.occurrence.start)}</div>`;
-    const story = rows.length > 0 ? `<h3>What's happened here</h3>${rows}` : "<p class='quiet'>Nothing recorded here yet.</p>";
-    return `<h2>${name}</h2>${since}${story}`;
+    // The panel declares its temporal frame (REVIEW-003 A3): scrubbed
+    // means the story below stops where the slider stands.
+    const frame =
+      session.view.time.start === NOW
+        ? ""
+        : `<div class="frame">${story.asOf(seasonLabel.textContent ?? "")}</div>`;
+    const rowsOrQuiet =
+      rows.length > 0 ? `<h3>What's happened here</h3>${rows}` : "<p class='quiet'>Nothing recorded here yet.</p>";
+    return `<h2>${name}</h2>${since}${frame}${rowsOrQuiet}`;
+  };
+
+  // ------------------------------------------- the author's door (P0 #2)
+  // One tap from reading to writing: annotate inherits its aboutness from
+  // the selection (RFC-0006 §8), and the whole tested pipeline — draft,
+  // commit, send, sync — runs behind one button.
+  const composeHtml = `<div class="compose">
+      <button id="add-note">${story.addNote}</button>
+      <form id="compose-form" hidden>
+        <textarea id="note-text" rows="3" placeholder="${story.notePlaceholder}"></textarea>
+        <div class="compose-actions">
+          <button type="submit" id="note-save">${story.keepNote}</button>
+          <button type="button" id="note-cancel">${story.neverMind}</button>
+        </div>
+        <p id="compose-status" class="quiet" hidden></p>
+      </form>
+    </div>`;
+
+  const renderPanel = (id: Id): void => {
+    panelBody.innerHTML = storyOf(id) + composeHtml;
+    const addBtn = el<HTMLButtonElement>("add-note");
+    const form = el<HTMLFormElement>("compose-form");
+    const text = el<HTMLTextAreaElement>("note-text");
+    addBtn.addEventListener("click", () => {
+      addBtn.hidden = true;
+      form.hidden = false;
+      text.focus();
+    });
+    el("note-cancel").addEventListener("click", () => {
+      form.hidden = true;
+      addBtn.hidden = false;
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const body = text.value.trim();
+      if (body === "") return;
+      const draftId = session.annotate("note", { text: body }, NOW);
+      session.commit(draftId);
+      void session.send().then(async (result) => {
+        if (result.rejected.length > 0) {
+          const status = el<HTMLElement>("compose-status");
+          status.textContent = work.couldNotSend;
+          status.hidden = false;
+          return;
+        }
+        await session.sync();
+        paint();
+        renderPanel(id); // the new note is part of the story now
+      });
+    });
   };
 
   const openPanel = (id: Id): void => {
     session.select([id]);
-    panelBody.innerHTML = storyOf(id);
+    renderPanel(id);
     panel.hidden = false;
     el("hint").hidden = true;
+    paint(); // attention is shared with the map (RFC-0006 §3)
   };
   const closePanel = (): void => {
     session.select([]);
     panel.hidden = true;
+    paint();
   };
   el("panel-close").addEventListener("click", closePanel);
 
@@ -173,7 +233,7 @@ async function boot(): Promise<void> {
       todayBtn.hidden = false;
     }
     if (!panel.hidden && session.view.selection[0] !== undefined) {
-      panelBody.innerHTML = storyOf(session.view.selection[0]);
+      renderPanel(session.view.selection[0]);
     }
     paint();
     remember();
@@ -224,7 +284,9 @@ async function boot(): Promise<void> {
 
   // --------------------------------------------------------- hover and pick
   const tooltip = el<HTMLElement>("tooltip");
-  map.on("load", () => {
+  // Marks depend on the style, not the imagery: paint as soon as the
+  // style stands so the farm never waits on the last satellite tile.
+  map.on("style.load", () => {
     paint();
     if (saved !== undefined) {
       map.jumpTo({ center: saved.center, zoom: saved.zoom });
@@ -237,7 +299,7 @@ async function boot(): Promise<void> {
       if (top !== undefined) {
         const props = top.properties as MarkFeatureProps;
         map.getCanvas().style.cursor = "pointer";
-        tooltip.textContent = props.name;
+        tooltip.textContent = props.count > 1 ? story.andMore(props.name, props.count - 1) : props.name;
         tooltip.style.left = `${e.point.x + 14}px`;
         tooltip.style.top = `${e.point.y + 14}px`;
         tooltip.hidden = false;

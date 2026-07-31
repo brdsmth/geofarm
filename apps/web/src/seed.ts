@@ -17,16 +17,8 @@ import { MemoryPersistence, PendingStore } from "../../../packages/client/stores
 
 export const NOW = "2026-07-01T12:00:00Z";
 
-function rect(w: number, s: number, e: number, n: number): Coordinate[][] {
-  return [
-    [
-      [w, s],
-      [e, s],
-      [e, n],
-      [w, n],
-      [w, s],
-    ],
-  ];
+function ring(pts: Coordinate[]): Coordinate[][] {
+  return [[...pts, pts[0] as Coordinate]];
 }
 
 export type SeededWorld = {
@@ -89,35 +81,110 @@ export async function seedWorld(): Promise<SeededWorld> {
     body: { name },
   });
 
-  // The farm line and its places (quarter-section scale, central Iowa).
+  // The farm line and its places, traced from the imagery the map renders
+  // (REVIEW-003 §3): every line below follows something visible in the
+  // World_Imagery tiles at this spot — the section roads on all four
+  // sides, the field edge at 41.5185, the treed creek running northeast,
+  // and the notch around the neighbor's acreage and pond. The first pixel
+  // a farmer studies must agree with the ground under it.
   const farm = entity("farm", "Miller Farm", {
     form: "area",
-    rings: rect(-93.206, 41.496, -93.158, 41.532),
+    rings: ring([
+      [-93.1978, 41.52245],
+      [-93.1882, 41.52245],
+      [-93.1879, 41.5195],
+      [-93.1877, 41.514],
+      [-93.1878, 41.5082],
+      [-93.1978, 41.5082],
+    ]),
   });
-  const north80 = entity("field", "North 80", { form: "area", rings: rect(-93.202, 41.5215, -93.1905, 41.5295) });
-  const creek = entity("field", "Creek Field", { form: "area", rings: rect(-93.187, 41.5215, -93.172, 41.5295) });
-  // West 40 as first surveyed — a correction will widen it in 2026.
-  const west40 = entity("field", "West 40", { form: "area", rings: rect(-93.202, 41.5115, -93.1935, 41.519) });
-  const home = entity("field", "Home Quarter", { form: "area", rings: rect(-93.1895, 41.4985, -93.1755, 41.508) });
-  const bottom = entity("field", "River Bottom", { form: "area", rings: rect(-93.1895, 41.5105, -93.1755, 41.519) });
-  const pond = entity("pond", "Stock Pond", { form: "area", rings: rect(-93.1715, 41.5105, -93.168, 41.5135) });
-  const barn = entity("building", "Machine Shed", { form: "position", coordinates: [-93.1915, 41.5095] });
+  const north80 = entity("field", "North 80", {
+    form: "area",
+    rings: ring([
+      [-93.1978, 41.5185],
+      [-93.1978, 41.52245],
+      [-93.1882, 41.52245],
+      [-93.188, 41.5209],
+      [-93.1893, 41.5209],
+      [-93.1893, 41.5185],
+    ]),
+  });
+  const creek = entity("field", "Creek Field", {
+    form: "area",
+    rings: ring([
+      [-93.1955, 41.5185],
+      [-93.1955, 41.5122],
+      [-93.1928, 41.5128],
+      [-93.1892, 41.513],
+      [-93.1877, 41.5137],
+      [-93.1877, 41.5185],
+    ]),
+  });
+  // West 40 as first platted — the 2026 resurvey found the line undershot.
+  const west40 = entity("field", "West 40", {
+    form: "area",
+    rings: ring([
+      [-93.1978, 41.5122],
+      [-93.1978, 41.5185],
+      [-93.1961, 41.5185],
+      [-93.1961, 41.5122],
+    ]),
+  });
+  const home = entity("field", "Home Quarter", {
+    form: "area",
+    rings: ring([
+      [-93.1928, 41.5082],
+      [-93.1928, 41.5128],
+      [-93.1892, 41.513],
+      [-93.1877, 41.5137],
+      [-93.1878, 41.5082],
+    ]),
+  });
+  const bottom = entity("field", "River Bottom", {
+    form: "area",
+    rings: ring([
+      [-93.1978, 41.5082],
+      [-93.1978, 41.5122],
+      [-93.1955, 41.5122],
+      [-93.1928, 41.5128],
+      [-93.1928, 41.5082],
+    ]),
+  });
+  const pond = entity("pond", "Stock Pond", {
+    form: "area",
+    rings: ring([
+      [-93.1893, 41.5201],
+      [-93.1887, 41.5201],
+      [-93.1887, 41.5206],
+      [-93.1893, 41.5206],
+    ]),
+  });
+  const barn = entity("building", "Machine Shed", { form: "position", coordinates: [-93.1976, 41.5207] });
   const road = entity("road", "Gravel Lane", {
     form: "path",
     coordinates: [
-      [-93.206, 41.5095],
-      [-93.1915, 41.5095],
-      [-93.172, 41.51],
-      [-93.158, 41.5105],
+      [-93.1978, 41.5205],
+      [-93.195, 41.5202],
+      [-93.1915, 41.5203],
+      [-93.1897, 41.5205],
     ],
   });
 
   const things = [farm, north80, creek, west40, home, bottom, pond, barn, road];
   for (const t of things) await journal.admit(t);
 
-  // The West 40 boundary correction (W2): resurveyed wider, spring 2026.
+  // The West 40 boundary correction (W2): resurveyed wider, spring 2026 —
+  // the corrected east line lands on the boundary visible in the imagery.
   const west40corrected: CandidateRecord = {
-    ...entity("field", "West 40", { form: "area", rings: rect(-93.202, 41.5085, -93.1935, 41.519) }),
+    ...entity("field", "West 40", {
+      form: "area",
+      rings: ring([
+        [-93.1978, 41.5122],
+        [-93.1978, 41.5185],
+        [-93.1955, 41.5185],
+        [-93.1955, 41.5122],
+      ]),
+    }),
     supersedes: west40.id,
     occurrence: { start: "2026-05-10T00:00:00Z" },
   };
