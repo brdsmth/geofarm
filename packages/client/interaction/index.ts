@@ -31,7 +31,7 @@ import {
   type Lens,
   type View,
 } from "../stores/index.ts";
-import { deriveMarks, pickAt, type Mark } from "../render/index.ts";
+import { deriveMarks, pickAt, standingAsOf, type Mark } from "../render/index.ts";
 
 export const PACKAGE = "@geofarm/client-interaction" as const;
 
@@ -125,26 +125,38 @@ export class Session {
     return pickAt(this.marks(), this.reading, point);
   }
 
-  /** Inspection in place (RFC-0006 §5): a bundle of derived readings. */
+  /**
+   * Inspection in place (RFC-0006 §5): a bundle of projections taken
+   * within the View — the timeline stops at the View's temporal binding
+   * and standing is resolved as it then was, so the panel and the map
+   * can never disagree about when "now" is (REVIEW-003 A3).
+   */
   inspect(id: Id): InspectionBundle | undefined {
     const record = this.reading.get(id);
     if (record === undefined) return undefined;
+    const bound = Date.parse(this.view.time.end ?? this.view.time.start);
     const timeline = this.reading
       .all()
       .filter((r) => r.subjects.includes(id))
+      .filter((r) => Date.parse(r.occurrence.start) <= bound)
       .sort((a, b) => Date.parse(a.occurrence.start) - Date.parse(b.occurrence.start));
-    const supersederOf = new Map(
-      this.reading
-        .all()
-        .filter((r) => r.supersedes !== undefined)
-        .map((r) => [r.supersedes as Id, r]),
-    );
-    let standing: AdmittedRecord | undefined = record;
-    while (standing !== undefined) {
-      const next = supersederOf.get(standing.id);
-      if (next === undefined) break;
-      standing = next;
+    const chain = new Set<Id>([record.id]);
+    let back: AdmittedRecord | undefined = record;
+    while (back?.supersedes !== undefined && !chain.has(back.supersedes)) {
+      chain.add(back.supersedes);
+      back = this.reading.get(back.supersedes);
     }
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const r of this.reading.all()) {
+        if (r.supersedes !== undefined && chain.has(r.supersedes) && !chain.has(r.id)) {
+          chain.add(r.id);
+          grew = true;
+        }
+      }
+    }
+    const standing = standingAsOf(this.reading.all(), this.view.time).find((r) => chain.has(r.id));
     return { record, timeline, standing };
   }
 

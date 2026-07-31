@@ -6,9 +6,10 @@
  */
 import { describe, expect, test } from "bun:test";
 import { Boundary } from "../../boundary/index.ts";
+import { newId } from "../../world/index.ts";
 import { MemoryPersistence, PendingStore } from "../stores/index.ts";
 import { Session } from "./index.ts";
-import { farmWorld, westGeom } from "../../projection/fixtures.ts";
+import { eastGeom, farmWorld, westGeom } from "../../projection/fixtures.ts";
 
 const NOW = "2026-07-01T00:00:00Z";
 
@@ -115,6 +116,37 @@ describe("P-27 — the time slider", () => {
     expect(s.marks().some((m) => m.presents.includes(scoutingNote.id))).toBe(true);
     expect(s.view.selection).toEqual([]); // untouched by scrubbing
     void west;
+  });
+
+  test("inspection honors the temporal binding (REVIEW-003 A3)", async () => {
+    const { s, west, scoutingNote } = await session();
+    // Today: the June note is part of the story.
+    expect(s.inspect(west.id)?.timeline.some((r) => r.id === scoutingNote.id)).toBe(true);
+    // Scrubbed to 2024: the note had not been written; the panel must agree.
+    s.navigateTime({ start: "2024-06-01T00:00:00Z" });
+    expect(s.inspect(west.id)?.timeline.some((r) => r.id === scoutingNote.id)).toBe(false);
+  });
+
+  test("standing resolves as it then was, across a correction", async () => {
+    const { s, journal, west, owner, org } = await session();
+    const corrected = await journal.admit({
+      id: newId(),
+      kind: "entity",
+      classification: "field",
+      actors: { actor: owner, onBehalfOf: [org] },
+      occurrence: { start: "2026-05-10T00:00:00Z" },
+      geometry: eastGeom,
+      subjects: [],
+      supersedes: west.id,
+    });
+    await s.sync();
+    // Today the correction stands.
+    expect(s.inspect(west.id)?.standing?.id).toBe(corrected.id);
+    // Scrubbed before the correction, the original stands — from either
+    // end of the chain the panel gives the same then-true answer.
+    s.navigateTime({ start: "2024-06-01T00:00:00Z" });
+    expect(s.inspect(west.id)?.standing?.id).toBe(west.id);
+    expect(s.inspect(corrected.id)?.standing?.id).toBe(west.id);
   });
 
   test("semantic navigation: go to a thing by identity (RFC-0006 §4)", async () => {
