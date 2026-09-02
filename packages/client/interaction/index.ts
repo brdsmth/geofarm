@@ -145,8 +145,11 @@ export class Session {
 
   // ------------------------------------------------- Navigate (View only)
 
+  /** Spatial panning: continuous, so it coalesces on the trail
+   * (RFC-0006 §1, Amendment 2). The viewport and the View's scope are one
+   * value: a shell calls this from the camera, never beside it. */
   navigateTo(region: Area): void {
-    this.trail.push(withRegion(this.view, region));
+    this.trail.slide(withRegion(this.view, region));
   }
 
   /** Temporal panning (RFC-0006 §4): the slider is this verb. */

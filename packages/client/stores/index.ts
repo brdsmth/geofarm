@@ -37,7 +37,7 @@ export class ReadingStore {
 
   ingest(page: { records: AdmittedRecord[]; watermark: number }): void {
     if (page.watermark < this.watermark) {
-      throw new Error("knowledge only grows: refusing to move backward");
+      throw new Error("knowledge only grows: refusing to move backward"); // surface-exempt: developer error, never shown
     }
     for (const r of page.records) {
       this.records.push(r);
@@ -103,20 +103,40 @@ export const toggleLens = (v: View, name: string): View => ({
   lenses: v.lenses.map((l) => (l.name === name ? { ...l, visible: !l.visible } : l)),
 });
 
-/** The trail of recent Views: undo for the consequence-free verbs. */
+/**
+ * The trail of recent Views: undo for the consequence-free verbs. History
+ * has granularity (RFC-0006 §1, Amendment 2): continuous navigation
+ * coalesces into one entry — a pan is one motion however many frames it
+ * took — while discrete verbs punctuate. Undo steps over verbs, never
+ * over camera nudges, and the trail stays bounded.
+ */
 export class ViewTrail {
   private trail: View[];
+  private sliding = false;
   constructor(initial: View) {
     this.trail = [initial];
   }
   get current(): View {
     return this.trail[this.trail.length - 1] as View;
   }
+  get length(): number {
+    return this.trail.length;
+  }
+  /** A discrete step: a new entry, and the end of any slide. */
   push(v: View): void {
     this.trail.push(v);
+    this.sliding = false;
+  }
+  /** A continuous motion: extends the current slide instead of adding
+   * an entry; the first frame of a slide is the entry. */
+  slide(v: View): void {
+    if (this.sliding) this.trail[this.trail.length - 1] = v;
+    else this.trail.push(v);
+    this.sliding = true;
   }
   back(): View {
     if (this.trail.length > 1) this.trail.pop();
+    this.sliding = false;
     return this.current;
   }
 }
@@ -146,7 +166,7 @@ export type PendingState = {
 
 export class PendingFormatTooNew extends Error {
   constructor(found: number) {
-    super(`pending format ${found} is newer than this app understands (${PENDING_FORMAT})`);
+    super(`pending format ${found} is newer than this app understands (${PENDING_FORMAT})`); // surface-exempt: developer error, never shown
     this.name = "PendingFormatTooNew";
   }
 }

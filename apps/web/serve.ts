@@ -10,7 +10,7 @@ Bun.serve({
     const path = new URL(req.url).pathname;
     const file = Bun.file(join(root, path === "/" ? "index.html" : path.slice(1)));
     if (await file.exists()) return new Response(file);
-    return new Response("not found", { status: 404 });
+    return new Response("not found", { status: 404 }); // surface-exempt: HTTP status body, not product copy
   },
 });
 

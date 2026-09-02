@@ -10,6 +10,7 @@
 import * as ML from "maplibre-gl";
 import type { Geometry, Id } from "../../../packages/world/index.ts";
 import type { Mark } from "../../../packages/client/render/index.ts";
+import { shell } from "../../../packages/client/surface/index.ts";
 
 // CJS/ESM interop: bundlers may surface the UMD build under .default.
 const maplibregl: typeof ML = ((ML as { default?: typeof ML }).default ?? ML) as typeof ML;
@@ -17,10 +18,32 @@ const maplibregl: typeof ML = ((ML as { default?: typeof ML }).default ?? ML) as
 /** Per-lens paint. The farm line is a line (REVIEW-003 §4.1): a lens with
  * `fill: false` never washes the ground it outlines. */
 export const LENS_STYLE: Record<string, { color: string; fill: boolean }> = {
-  fields: { color: "#7ddf64", fill: true },
+  fields: { color: "#9fb8a6", fill: true },
   boundary: { color: "#ffd166", fill: false },
   places: { color: "#5bc8f5", fill: true },
-  work: { color: "#f79ad3", fill: true },
+  work: { color: "#f2a65a", fill: true },
+  soil: { color: "#c9a27e", fill: true },
+  office: { color: "#e6e6e6", fill: true },
+};
+
+/** What is growing, as colour: projected state made visible
+ * (REVIEW-003 §3 — "state of my farm", not "map of my farm"). */
+const CROP_COLOR: Record<string, string> = {
+  corn: "#f2c14e",
+  soybeans: "#7ddf64",
+  wheat: "#e8d59a",
+  fallow: "#9fb8a6",
+};
+
+/** A small, meaningful colour system for marks (REVIEW-003 §4.3):
+ * operations, observations, claims, paperwork — never one hue for all. */
+const GROUP_COLOR: Record<string, string> = {
+  operation: "#f2a65a",
+  observation: "#5bc8f5",
+  claim: "#c792ea",
+  paper: "#e6e6e6",
+  place: "#5bc8f5",
+  soil: "#c9a27e",
 };
 
 function toGeoJSONGeometry(g: Geometry): GeoJSON.Geometry {
@@ -53,15 +76,27 @@ function centroidOf(g: Geometry): [number, number] {
   return [lon, lat];
 }
 
-export type MarkFeatureProps = {
-  id: string;
-  lens: string;
+/** What the shell says about a thing, for the engine to paint. */
+export type Described = {
   name: string;
   kind: string;
+  /** The colour family of the mark. */
+  group: string;
+  /** For fields: what is growing as of the View's time, if anything. */
+  crop: string;
+  /** The label on the map: identity first, state second. */
+  label: string;
+};
+
+export type MarkFeatureProps = Described & {
+  id: string;
+  lens: string;
   selected: boolean;
-  /** Coincident marks aggregated here (REVIEW-003 A2): count is always
-   * visible at N ≥ 2 — invisible stacking is a sparsity-trust violation. */
+  /** Coincident marks aggregated here (RFC-0015 §4 Amendment 1): count
+   * is always visible at N ≥ 2 — invisible stacking is a sparsity-trust
+   * violation. `ids` carries every member so the aggregate resolves. */
   count: number;
+  ids: string;
 };
 
 /** Marks → per-lens FeatureCollections. Events with area-shaped inherited
@@ -71,27 +106,27 @@ export type MarkFeatureProps = {
  * visible count; selection rides along so the engine can show attention. */
 export function toFeatureCollections(
   marks: Mark[],
-  describe: (id: Id) => { name: string; kind: string },
+  describe: (id: Id) => Described,
   selection: readonly Id[] = [],
 ): Map<string, GeoJSON.FeatureCollection> {
   const byLens = new Map<string, GeoJSON.Feature[]>();
   const stacks = new Map<string, GeoJSON.Feature>();
   for (const m of marks) {
     const id = m.presents[0] as Id;
-    const { name, kind } = describe(id);
+    const described = describe(id);
     // Events and claims with area-shaped inherited place render as dots;
     // only entities own their outline on the map.
-    const pointy = kind !== "entity" && m.geometry.form !== "position";
+    const pointy = described.kind !== "entity" && m.geometry.form !== "position";
     const geometry = pointy
       ? ({ type: "Point", coordinates: centroidOf(m.geometry) } as GeoJSON.Geometry)
       : toGeoJSONGeometry(m.geometry);
     const props: MarkFeatureProps = {
+      ...described,
       id,
       lens: m.lens,
-      name,
-      kind,
       selected: selection.includes(id),
       count: 1,
+      ids: id,
     };
     if (geometry.type === "Point") {
       const key = `${m.lens}:${geometry.coordinates.map((c) => c.toFixed(5)).join(",")}`;
@@ -99,6 +134,7 @@ export function toFeatureCollections(
       if (stacked !== undefined) {
         const sp = stacked.properties as MarkFeatureProps;
         sp.count += 1;
+        sp.ids = `${sp.ids},${id}`;
         sp.selected = sp.selected || props.selected;
         continue;
       }
@@ -119,7 +155,7 @@ export function toFeatureCollections(
 }
 
 export function createMap(container: HTMLElement): ML.Map {
-  return new maplibregl.Map({
+  const map = new maplibregl.Map({
     container,
     style: {
       version: 8,
@@ -131,7 +167,7 @@ export function createMap(container: HTMLElement): ML.Map {
             "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
           ],
           tileSize: 256,
-          attribution: "Imagery © Esri",
+          attribution: shell.imageryCredit,
         },
       },
       layers: [
@@ -147,17 +183,30 @@ export function createMap(container: HTMLElement): ML.Map {
     zoom: 13.6,
     attributionControl: { compact: true },
   });
+  // Zoom buttons and a scale bar (REVIEW-003 §4.8): pinch-only excludes
+  // a real demographic, and a map without a scale is not a map.
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-right");
+  return map;
 }
 
 export const PICKABLE = ["fill", "line", "point"] as const;
 
 const SELECTED = ["to-boolean", ["get", "selected"]] as unknown as ML.ExpressionSpecification;
 const STACKED = [">=", ["get", "count"], 2] as unknown as ML.ExpressionSpecification;
+const FONT = ["Open Sans Semibold"]; // surface-exempt: a glyph set name, not copy
+
+function matchExpr(prop: string, table: Record<string, string>, fallback: string): ML.ExpressionSpecification {
+  const pairs = Object.entries(table).flat();
+  return ["match", ["get", prop], ...pairs, fallback] as unknown as ML.ExpressionSpecification;
+}
 
 export function ensureLensLayers(map: ML.Map, lens: string): void {
   if (map.getSource(lens) !== undefined) return;
   const style = LENS_STYLE[lens] ?? { color: "#ffffff", fill: true };
   const color = style.color;
+  const fillColor = lens === "fields" ? matchExpr("crop", CROP_COLOR, color) : color;
+  const pointColor = matchExpr("group", GROUP_COLOR, color);
   map.addSource(lens, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   if (style.fill) {
     // Selection is shared attention (RFC-0006 §3): the attended polygon
@@ -167,7 +216,7 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
       type: "fill",
       source: lens,
       filter: ["==", ["geometry-type"], "Polygon"],
-      paint: { "fill-color": color, "fill-opacity": ["case", SELECTED, 0.34, 0.14] },
+      paint: { "fill-color": fillColor, "fill-opacity": ["case", SELECTED, 0.38, 0.16] },
     });
   }
   map.addLayer({
@@ -176,7 +225,7 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
     source: lens,
     filter: ["in", ["geometry-type"], ["literal", ["Polygon", "LineString"]]],
     paint: {
-      "line-color": ["case", SELECTED, "#ffffff", color],
+      "line-color": ["case", SELECTED, "#ffffff", lens === "fields" ? fillColor : color],
       "line-width": ["case", SELECTED, 4, lens === "boundary" ? 2.5 : 2],
       ...(lens === "boundary" ? { "line-dasharray": [2, 2] } : {}),
     },
@@ -187,14 +236,15 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
     source: lens,
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
-      "circle-color": color,
-      "circle-radius": ["case", STACKED, 9, ["case", SELECTED, 8, 6]],
+      "circle-color": pointColor,
+      // Glove-scale targets (REVIEW-003 §4.7): nothing smaller than 8px.
+      "circle-radius": ["case", STACKED, 11, ["case", SELECTED, 10, 8]],
       "circle-stroke-color": ["case", SELECTED, "#ffffff", "#0b1a10"],
       "circle-stroke-width": 2,
     },
   });
-  // The count badge (REVIEW-003 A2): coincident marks may share a dot,
-  // but never invisibly — sparsity on screen must be trustworthy.
+  // The count badge (RFC-0015 §4 Amendment 1): coincident marks may share
+  // a dot, but never invisibly — sparsity on screen must be trustworthy.
   map.addLayer({
     id: `${lens}-count`,
     type: "symbol",
@@ -202,7 +252,7 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
     filter: ["all", ["==", ["geometry-type"], "Point"], STACKED],
     layout: {
       "text-field": ["to-string", ["get", "count"]],
-      "text-font": ["Open Sans Semibold"],
+      "text-font": FONT,
       "text-size": 11,
       "text-allow-overlap": true,
     },
@@ -213,9 +263,10 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
 }
 
 /** Identity outranks geometry (REVIEW-003 §4.2): entities carry their
- * names on the map itself, not behind a hover. Label layers are added
- * after every mark layer so names win the collision pass, and anchors
- * are variable so a name slides off a dot rather than vanishing. */
+ * names on the map itself, not behind a hover, with what is growing
+ * beside them. Label layers are added after every mark layer so names
+ * win the collision pass, and anchors are variable so a name slides off
+ * a dot rather than vanishing. */
 export function ensureLensLabels(map: ML.Map, lens: string): void {
   if (map.getLayer(`${lens}-label`) !== undefined) return;
   map.addLayer({
@@ -224,12 +275,12 @@ export function ensureLensLabels(map: ML.Map, lens: string): void {
     source: lens,
     filter: [
       "all",
-      ["!=", ["get", "kind"], "event"],
+      ["==", ["get", "kind"], "entity"],
       ["in", ["geometry-type"], ["literal", ["Polygon", "Point"]]],
     ],
     layout: {
-      "text-field": ["get", "name"],
-      "text-font": ["Open Sans Semibold"],
+      "text-field": ["get", "label"],
+      "text-font": FONT,
       "text-size": lens === "fields" ? 14 : 12,
       "text-padding": 6,
       "text-variable-anchor":

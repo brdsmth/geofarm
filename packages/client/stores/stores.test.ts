@@ -78,6 +78,27 @@ describe("P-24 — View: one value, free undo", () => {
     expect(v0.selection).toEqual([]);
   });
 
+  test("history has granularity: a pan is one entry, a verb punctuates (RFC-0006 §1 A2)", () => {
+    const v0 = defaultView("2026-07-01T00:00:00Z");
+    const trail = new ViewTrail(v0);
+    const box = (w: number): Parameters<typeof withRegion>[1] => ({
+      form: "area",
+      rings: [[[w, 0], [w + 1, 0], [w + 1, 1], [w, 1], [w, 0]]],
+    });
+    // Sixty frames of one drag: one trail entry.
+    for (let i = 0; i < 60; i++) trail.slide(withRegion(trail.current, box(i)));
+    expect(trail.length).toBe(2);
+    // A verb punctuates; the next drag is a new entry.
+    trail.push(withSelection(trail.current, [newId()]));
+    trail.slide(withRegion(trail.current, box(100)));
+    trail.slide(withRegion(trail.current, box(101)));
+    expect(trail.length).toBe(4);
+    // Undo steps over the drag, then over the selection, then over the first drag.
+    expect(trail.back().selection.length).toBe(1);
+    expect(trail.back().selection.length).toBe(0);
+    expect(trail.back()).toEqual(v0);
+  });
+
   test("views are cheap values, not managed artifacts", () => {
     const v = defaultView("2026-07-01T00:00:00Z");
     const moved = withRegion(v, { form: "area", rings: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] });

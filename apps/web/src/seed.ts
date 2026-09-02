@@ -1,5 +1,7 @@
 /**
  * The demo farm: a seeded in-process world.
+ * surface-exempt-file: these strings are world content (field names, notes
+ * a person wrote) — records, not the system's own copy (RFC-0000 §2.6).
  *
  * The journal, boundary, and Session are the real packages (RFC-0012's
  * Boundary port is transport-agnostic — an in-browser world and a remote
@@ -8,12 +10,16 @@
  * one boundary correction so the season slider shows true frames (W2/H3).
  */
 
-import { newId, type CandidateRecord, type Coordinate, type Id } from "../../../packages/world/index.ts";
+import type { CandidateRecord, Coordinate, Geometry, Id } from "../../../packages/world/index.ts";
 import { Journal } from "../../../packages/journal/index.ts";
-import { MemoryStore } from "../../../packages/journal/store-memory.ts";
 import { Boundary } from "../../../packages/boundary/index.ts";
-import { Session } from "../../../packages/client/interaction/index.ts";
-import { MemoryPersistence, PendingStore } from "../../../packages/client/stores/index.ts";
+import { LocalStore } from "./store-local.ts";
+
+/** Identities are cheap and opaque (RFC-0004 §6); the demo's are stable
+ * across reloads so a remembered View and an unsent outbox still point at
+ * the same farm tomorrow. */
+let seq = 0;
+const newId = (): Id => `miller:${String(++seq).padStart(3, "0")}`;
 
 export const NOW = "2026-07-01T12:00:00Z";
 
@@ -44,25 +50,41 @@ function ring(pts: Coordinate[]): Coordinate[][] {
 }
 
 export type SeededWorld = {
-  session: Session;
-  names: Map<Id, string>;
+  journal: Journal;
   boundary: Boundary;
+  /** The people who can look at this farm, in a chosen order. */
+  people: Id[];
   /** The AI Actor (RFC-0010 §1): scoped, attributed, a participant. */
   assistant: Id;
   org: Id;
+  /** Forget the browser's copy of the world and reseed on next load. */
+  reset: () => void;
 };
 
-export async function seedWorld(): Promise<SeededWorld> {
+export async function seedWorld(storage: Storage): Promise<SeededWorld> {
+  seq = 0; // one numbering per world, so restore and seed agree
+  const store = new LocalStore("geofarm-world-1", storage);
+  let seeding = true;
   let tick = 0;
-  const journal = new Journal(
-    new MemoryStore(),
-    () => new Date(Date.parse("2026-06-01T00:00:00Z") + ++tick * 1000).toISOString(),
+  const journal = new Journal(store, () =>
+    seeding
+      ? new Date(Date.parse("2026-06-01T00:00:00Z") + ++tick * 1000).toISOString()
+      : new Date().toISOString(),
   );
 
   const org = newId();
   const you = newId();
   const maria = newId();
   const sam = newId();
+  const assistant = newId();
+  const reset = (): void => store.forget();
+
+  // A world already on this device: replay it as ordinary history — same
+  // records, same order, same knowledge times — and seed nothing.
+  if (await store.restore()) {
+    seeding = false;
+    return { journal, boundary: new Boundary(journal), people: [you, sam, maria], assistant, org, reset };
+  }
 
   // Introductions land farm-owned (RFC-0002 §4.4) so every member's
   // Reading can put a name to a signature — a record whose author has no
@@ -76,7 +98,6 @@ export async function seedWorld(): Promise<SeededWorld> {
     subjects: [],
     body: { name },
   });
-  const assistant = newId();
   await journal.admit(actor(org, "organization", "Miller Farm"));
   await journal.admit(actor(you, "person", "You"));
   await journal.admit(actor(maria, "person", "Maria (agronomist)"));
@@ -153,7 +174,7 @@ export async function seedWorld(): Promise<SeededWorld> {
   const entity = (
     classification: string,
     name: string,
-    geometry: CandidateRecord["geometry"],
+    geometry: Geometry,
     since = "1994-03-01T00:00:00Z",
   ): CandidateRecord => ({
     id: newId(),
@@ -282,6 +303,7 @@ export async function seedWorld(): Promise<SeededWorld> {
     when: string,
     text: string,
     who: Id = sam,
+    extra: Record<string, unknown> = {},
   ): CandidateRecord => ({
     id: newId(),
     kind: "event",
@@ -289,8 +311,10 @@ export async function seedWorld(): Promise<SeededWorld> {
     actors: { actor: who, onBehalfOf: [org] },
     occurrence: { start: when },
     subjects: [subject],
-    body: { text },
+    body: { text, ...extra },
   });
+  const planted = (subject: Id, when: string, crop: string): CandidateRecord =>
+    event("planting", subject, when, `Planted ${crop}`, sam, { crop });
 
   const yellowing = event(
     "note",
@@ -300,20 +324,31 @@ export async function seedWorld(): Promise<SeededWorld> {
     maria,
   );
   const history: CandidateRecord[] = [
-    event("planting", north80.id, "2024-05-02T00:00:00Z", "Planted corn"),
-    event("planting", creek.id, "2024-05-04T00:00:00Z", "Planted soybeans"),
+    planted(north80.id, "2024-05-02T00:00:00Z", "corn"),
+    planted(creek.id, "2024-05-04T00:00:00Z", "soybeans"),
+    planted(west40.id, "2024-05-06T00:00:00Z", "corn"),
     event("harvest", north80.id, "2024-10-19T00:00:00Z", "Harvested — 214 bu/ac"),
-    event("planting", north80.id, "2025-04-28T00:00:00Z", "Planted soybeans"),
-    event("planting", creek.id, "2025-05-01T00:00:00Z", "Planted corn"),
+    event("harvest", creek.id, "2024-10-21T00:00:00Z", "Harvested — 58 bu/ac"),
+    event("harvest", west40.id, "2024-10-22T00:00:00Z", "Harvested — 198 bu/ac"),
+    planted(north80.id, "2025-04-28T00:00:00Z", "soybeans"),
+    planted(creek.id, "2025-05-01T00:00:00Z", "corn"),
+    planted(home.id, "2025-05-03T00:00:00Z", "corn"),
     event("harvest", creek.id, "2025-10-24T00:00:00Z", "Harvested — 231 bu/ac"),
-    event("planting", north80.id, "2026-05-06T00:00:00Z", "Planted corn"),
-    event("planting", creek.id, "2026-05-08T00:00:00Z", "Planted corn"),
-    event("planting", home.id, "2026-05-12T00:00:00Z", "Planted soybeans"),
+    event("harvest", north80.id, "2025-10-26T00:00:00Z", "Harvested — 61 bu/ac"),
+    event("harvest", home.id, "2025-10-28T00:00:00Z", "Harvested — 224 bu/ac"),
+    planted(north80.id, "2026-05-06T00:00:00Z", "corn"),
+    planted(creek.id, "2026-05-08T00:00:00Z", "corn"),
+    planted(home.id, "2026-05-12T00:00:00Z", "soybeans"),
+    planted(west40.id, "2026-05-14T00:00:00Z", "soybeans"),
     event("spray", north80.id, "2026-06-11T00:00:00Z", "Sprayed — post-emerge pass"),
     yellowing,
     event("note", bottom.id, "2026-06-24T00:00:00Z", "Standing water at the north end", maria),
     event("note", west40.id, "2026-06-27T00:00:00Z", "New line looks right after the survey", you),
     event("maintenance", barn.id, "2026-03-14T00:00:00Z", "Serviced the planter", sam),
+    // The books (RFC-0016 C2's other half): what the agronomist's
+    // engagement does not cover, and the assistant never discusses.
+    event("invoice", home.id, "2026-04-02T00:00:00Z", "Seed invoice — Pioneer, $18,400", you),
+    event("lien", bottom.id, "2026-01-15T00:00:00Z", "Operating line — First Ag Bank", you),
   ];
   for (const h of history) await journal.admit(h);
 
@@ -332,14 +367,7 @@ export async function seedWorld(): Promise<SeededWorld> {
     body: { text: "Nitrogen running short along the drainage line" },
   });
 
-  const boundary = new Boundary(journal);
-  const session = new Session(you, boundary, new PendingStore(new MemoryPersistence()), NOW);
-  await session.sync();
-
-  const names = new Map<Id, string>();
-  for (const r of session.reading.all()) {
-    const n = (r.body as { name?: string } | undefined)?.name;
-    if (n !== undefined) names.set(r.id, n);
-  }
-  return { session, names, boundary, assistant, org };
+  seeding = false;
+  await store.persist();
+  return { journal, boundary: new Boundary(journal), people: [you, sam, maria], assistant, org, reset };
 }

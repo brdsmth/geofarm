@@ -10,7 +10,8 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["bun"]
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun", "geojson"]
   },
-  "include": ["packages/**/*.ts", "tools/**/*.ts", "tests/**/*.ts"]
+  "include": ["packages/**/*.ts", "tools/**/*.ts", "tests/**/*.ts", "apps/**/*.ts"]
 }

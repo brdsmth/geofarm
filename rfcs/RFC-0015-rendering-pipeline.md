@@ -75,7 +75,7 @@ The two axes never blur, because View and Reading are separate stores with separ
 
 Three disciplines keep LOD honest:
 
-- **Aggregate, don't omit.** Content beyond the current scale's density budget is presented in summary (clusters, surfaces, counts) rather than silently dropped — the no-silent-caps principle: an empty-looking region must mean *empty*, not *unrendered*. Sparsity on screen must be trustworthy, because the twin's honesty about its own coverage (RFC-0007 §7) is only as good as the surface that displays it.
+- **Aggregate, don't omit.** Content beyond the current scale's density budget is presented in summary (clusters, surfaces, counts) rather than silently dropped — the no-silent-caps principle: an empty-looking region must mean *empty*, not *unrendered*. Sparsity on screen must be trustworthy, because the twin's honesty about its own coverage (RFC-0007 §7) is only as good as the surface that displays it. *(Amendment 1, per REVIEW-003 §6 A2 — clarifying.)* **Aggregation duties are density-triggered, not scale-triggered: coincident or indistinguishably-near marks must aggregate with a visible count at any N ≥ 2.** Five events on one field rendered as one dot is invisible stacking — the sparsity-trust violation this discipline already forbids, at trivial scale.
 - **Selectability survives** (§1): every aggregate resolves to its members.
 - **Simplification declares itself at the margin.** A generalized boundary is an approximation; at scales where the approximation could mislead (survey-adjacent zooms), true geometry replaces it. Simplification is presentation and must never harden into a claim about where the line is.
 
@@ -145,6 +145,16 @@ Animation, in both kinds, holds no store: frames are derivations in flight, and 
 **What was deliberately not designed.** Graphics pipelines, tiling schemes, symbology, typography, and color are mechanism or design. Co-presence rendering (other viewers' cursors and Views) remains deferred with its state-model crack (RFC-0014 §8). And the density budget itself — how many marks a screen can carry before it stops communicating — is a perceptual question this document treats as a bound without naming its value; cartography has literature, and the first implementation should consult it rather than discover it.
 
 **Overall.** Highest confidence: the two-axis invalidation model and watermark-keyed caching — both are the append-only architecture cashing checks it wrote nine documents ago, and both turn traditionally hard rendering problems into bookkeeping. Lowest confidence: the universal satisfiability of the LOD disciplines, and the Mark's answerability contract under real scale — the two places where this document's principles will first meet a profiler, and where the series' habit of letting architecture win arguments will face its most tempting counterexamples. If this RFC is wrong, it is wrong there — and the amendment, when it comes, must weaken the contract openly rather than let the pipeline drift into beautiful, unanswerable pictures. Stated plainly, so the first renderer knows which promises are the architecture and which are the paint.
+
+---
+
+## 10. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-09-02 | REVIEW-003 §6 A2 (adopted at milestone M8) | §4: aggregation is density-triggered — coincident marks aggregate with a visible count at any N ≥ 2. Found by the vertical slice at n = 29 (REVIEW-003 §2.C), where LOD had been framed as a scale problem. |
+
+**User Experience Implications (Amendment 1).** *Projection:* a dot with a small number on it means "more than one thing happened here"; tap it and they are listed. *Concealment:* marks, streams, and density budgets stay invisible. *Leak check:* a count is a count; no term surfaces. *Wholeness:* a field with one event shows one plain dot — nothing about the rule is felt until it applies.
 
 ---
 
