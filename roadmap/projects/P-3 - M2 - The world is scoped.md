@@ -2,7 +2,7 @@
 id: P-3
 title: M2 - The world is scoped
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 3
 tags:

@@ -2,7 +2,7 @@
 id: P-5
 title: M4 - The world learns
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 3
 tags:

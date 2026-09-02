@@ -63,6 +63,9 @@ const LENSES = [
       ],
     },
   },
+  // The sixth layer (S4, RFC-0016 §4): soil, added after launch touching
+  // this lens definition and the seed's border config — nothing else.
+  { name: "soil", filter: { classifications: ["soil-site", "soil-sample"] } },
   { name: "office", filter: { classifications: ["invoice", "lien"] } },
 ];
 
@@ -112,11 +115,15 @@ function fmtDate(iso: string): string {
 }
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
-const text = (r: AdmittedRecord | undefined): string =>
-  (r?.body as { text?: string; name?: string } | undefined)?.text ??
-  (r?.body as { name?: string } | undefined)?.name ??
-  kinds[r?.classification ?? ""] ??
-  "";
+const text = (r: AdmittedRecord | undefined): string => {
+  const body = r?.body as { text?: string; name?: string; channel?: string; value?: number } | undefined;
+  if (body?.text !== undefined) return body.text;
+  if (body?.name !== undefined) return body.name;
+  if (body?.channel !== undefined && body.value !== undefined) {
+    return shell.measured(shell.channels[body.channel] ?? body.channel, String(body.value));
+  }
+  return kinds[r?.classification ?? ""] ?? "";
+};
 
 async function boot(): Promise<void> {
   const world = await seedWorld(localStorage);

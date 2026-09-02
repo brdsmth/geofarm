@@ -34,7 +34,16 @@ export type WeatherFeedConfig = {
   channels: Record<string, EpistemicClass>;
   /** The outward ground cited by the provider's derived numbers. */
   ground: string;
+  /**
+   * What the admitted records are called (S4, RFC-0016 §4): a sampled
+   * source is a sampled source — a weather station and a soil-sampling
+   * site are unlike only in what they are called and what their channels
+   * mean, both of which are border configuration, not code.
+   */
+  classifications?: { site: string; measurement: string; estimate: string };
 };
+
+const WEATHER_NAMES = { site: "weather-station", measurement: "reading", estimate: "weather-estimate" };
 
 export type StationInput = { foreignId: string; name: string; lon: number; lat: number };
 export type ChannelReadingInput = {
@@ -68,6 +77,10 @@ export class WeatherFeed {
     return { actor: this.actor, onBehalfOf: [this.config.org] };
   }
 
+  private get names(): { site: string; measurement: string; estimate: string } {
+    return this.config.classifications ?? WEATHER_NAMES;
+  }
+
   /** Resolve a station by foreign id through the feed's own projection —
    * stateless: the world is the only memory (RFC-0011 §3). */
   private async findStation(foreignId: string): Promise<AdmittedRecord | undefined> {
@@ -81,7 +94,7 @@ export class WeatherFeed {
       const r = reading?.record;
       if (
         r !== undefined &&
-        r.classification === "weather-station" &&
+        r.classification === this.names.site &&
         (r.body as { foreignId?: string } | undefined)?.foreignId === foreignId
       ) {
         return r;
@@ -98,7 +111,7 @@ export class WeatherFeed {
     const candidate: CandidateRecord = {
       id: newId(),
       kind: "entity",
-      classification: "weather-station",
+      classification: this.names.site,
       actors: this.acting(),
       occurrence: { start: "1970-01-01T00:00:00Z" }, // stood before our records
       geometry: { form: "position", coordinates: [input.lon, input.lat] },
@@ -130,7 +143,7 @@ export class WeatherFeed {
           ? {
               id: newId(),
               kind: "event",
-              classification: "reading",
+              classification: this.names.measurement,
               actors: this.acting(),
               occurrence: { start: input.time },
               subjects: [station.id],
@@ -139,7 +152,7 @@ export class WeatherFeed {
           : {
               id: newId(),
               kind: "assertion",
-              classification: "weather-estimate",
+              classification: this.names.estimate,
               actors: this.acting(),
               occurrence: { start: input.time },
               subjects: [station.id],

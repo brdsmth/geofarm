@@ -2,7 +2,7 @@
 id: P-7
 title: M6 - Many hands
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 2
 tags:

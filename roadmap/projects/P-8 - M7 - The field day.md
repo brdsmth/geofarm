@@ -2,7 +2,7 @@
 id: P-8
 title: M7 - The field day
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 2
 tags:

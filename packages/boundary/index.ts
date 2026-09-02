@@ -13,7 +13,7 @@
 
 import type { AdmittedRecord, Area, CandidateRecord, Id } from "../world/index.ts";
 import { AdmissionRejected, type Journal } from "../journal/index.ts";
-import { AccessEngine, matchesScope, type Scope } from "../access/index.ts";
+import { AccessEngine, GRANT_CLASSIFICATION, matchesScope, type Scope } from "../access/index.ts";
 import { Projection, type Reading } from "../projection/index.ts";
 
 /** Scope match against a candidate's content dimensions, place unknown. */
@@ -165,20 +165,35 @@ export class Boundary {
   /**
    * The walk (RFC-0012 §4): everything learned since the watermark, within
    * the caller's sub-world. The feed is a scoped projection of the log.
+   *
+   * When a grant lands after the watermark, the consumer's accessible
+   * world may have grown: "a grant newly issued admits its scope's
+   * existing content into the next walk" (§4). The walk then delivers
+   * the difference — everything now viewable at or below the watermark
+   * as well — and the Reading, append-only and keyed by identity, keeps
+   * each record once. No consumer state lives here; the door stays
+   * stateless (RFC-0012 §9).
    */
   async walk(actor: Id, watermark: number, limit = 1000): Promise<BoundaryWalkPage> {
     const p = await this.projectionFor(actor);
-    const known = new Set((await p.listKnown()).viewable);
+    const viewable = await p.allViewable();
+    const known = new Set(viewable.map((r) => r.id));
     const records: AdmittedRecord[] = [];
     let cursor = watermark;
+    let grew = false;
     for (;;) {
       const page = await this.journal.walkFrom(cursor, limit);
       if (page.records.length === 0) break;
       for (const r of page.records) {
+        if (r.classification === GRANT_CLASSIFICATION) grew = true;
         if (known.has(r.id)) records.push(r);
       }
       cursor = page.watermark;
       if (records.length >= limit) break;
+    }
+    if (grew && watermark > 0) {
+      const older = viewable.filter((r) => r.seq <= watermark);
+      return { records: [...older, ...records], watermark: cursor };
     }
     return { records, watermark: cursor };
   }

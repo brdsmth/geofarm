@@ -2,7 +2,7 @@
 id: P-1
 title: M0 - Papers signed
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 1
 tags:

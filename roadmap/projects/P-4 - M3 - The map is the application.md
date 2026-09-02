@@ -2,7 +2,7 @@
 id: P-4
 title: M3 - The map is the application
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 5
 tags:

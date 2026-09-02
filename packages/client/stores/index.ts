@@ -40,6 +40,10 @@ export class ReadingStore {
       throw new Error("knowledge only grows: refusing to move backward"); // surface-exempt: developer error, never shown
     }
     for (const r of page.records) {
+      // Identity is the key (RFC-0004 §6): a record delivered twice — as
+      // when a grant grows the accessible world and the walk re-delivers
+      // what it now admits (RFC-0012 §4) — is held once.
+      if (this.index.has(r.id)) continue;
       this.records.push(r);
       this.index.set(r.id, r);
     }

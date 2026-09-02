@@ -14,6 +14,7 @@ import type { CandidateRecord, Coordinate, Geometry, Id } from "../../../package
 import { Journal } from "../../../packages/journal/index.ts";
 import { Boundary } from "../../../packages/boundary/index.ts";
 import { LocalStore } from "./store-local.ts";
+import { WeatherFeed } from "../../../packages/feeds/weather/index.ts";
 
 /** Identities are cheap and opaque (RFC-0004 §6); the demo's are stable
  * across reloads so a remembered View and an unsent outbox still point at
@@ -30,6 +31,7 @@ export const AGRONOMY = [
   "organization",
   "person",
   "agent",
+  "service",
   "farm",
   "field",
   "pond",
@@ -43,6 +45,8 @@ export const AGRONOMY = [
   "diagnosis",
   "reading",
   "anomaly",
+  "soil-site",
+  "soil-sample",
 ];
 
 function ring(pts: Coordinate[]): Coordinate[][] {
@@ -367,7 +371,44 @@ export async function seedWorld(storage: Storage): Promise<SeededWorld> {
     body: { text: "Nitrogen running short along the drainage line" },
   });
 
+  // The soil lab (S4 — the sixth layer): an engaged external Actor
+  // admitted through the same door as the weather provider, with the
+  // border configured for soil instead of weather. Sites are sample
+  // points; samples are measurements. No new code anywhere.
+  const boundary = new Boundary(journal);
+  const lab = newId();
+  await journal.admit(actor(lab, "service", "Prairie Soil Lab"));
+  await journal.admit({
+    id: newId(),
+    kind: "event",
+    classification: "grant",
+    actors: { actor: you, onBehalfOf: [org] },
+    occurrence: { start: "2025-10-01T00:00:00Z" },
+    subjects: [org],
+    body: { grantee: lab, scope: { classifications: ["soil-site", "soil-sample"] }, capabilities: ["represent"] },
+  });
+  const soil = new WeatherFeed(boundary, lab, {
+    org,
+    channels: { pH: "measurement", organicMatterPct: "measurement", cec: "measurement" },
+    ground: "prairie-soil-lab-methods-2025",
+    classifications: { site: "soil-site", measurement: "soil-sample", estimate: "soil-estimate" },
+  });
+  const sites: [string, string, number, number, number, number][] = [
+    ["N80-A", "North 80 — sample A", -93.1955, 41.5205, 6.4, 3.1],
+    ["N80-B", "North 80 — sample B", -93.191, 41.5195, 6.1, 2.8],
+    ["CRK-A", "Creek Field — sample A", -93.192, 41.5155, 5.7, 3.6],
+    ["HQ-A", "Home Quarter — sample A", -93.1905, 41.5105, 6.8, 2.4],
+    ["RB-A", "River Bottom — sample A", -93.1955, 41.5102, 6.2, 4.2],
+  ];
+  for (const [foreignId, name, lon, lat, pH, om] of sites) {
+    await soil.ensureStation({ foreignId, name, lon, lat });
+    await soil.ingestReadings([
+      { foreignStationId: foreignId, channel: "pH", time: "2025-10-20T00:00:00Z", value: pH },
+      { foreignStationId: foreignId, channel: "organicMatterPct", time: "2025-10-20T00:00:00Z", value: om },
+    ]);
+  }
+
   seeding = false;
   await store.persist();
-  return { journal, boundary: new Boundary(journal), people: [you, sam, maria], assistant, org, reset };
+  return { journal, boundary, people: [you, sam, maria], assistant, org, reset };
 }

@@ -2,7 +2,7 @@
 id: P-9
 title: M8 - First cut
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 2
 tags:

@@ -2,7 +2,7 @@
 id: P-2
 title: M1 - The journal holds
 parent: O-1
-status: planned
+status: done
 owner: bradley
 weight: 3
 tags:

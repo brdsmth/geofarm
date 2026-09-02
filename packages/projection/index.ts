@@ -209,6 +209,11 @@ export class Projection {
     return (await this.visibleWithin(region)).length;
   }
 
+  /** Every record this sub-world reads at view depth, in admission order. */
+  async allViewable(): Promise<AdmittedRecord[]> {
+    return (await this.load()).viewable;
+  }
+
   /** Everything this sub-world knows exists (view and discover depths). */
   async listKnown(): Promise<{ viewable: Id[]; discoverable: Id[] }> {
     const { viewable, discoverable } = await this.load();
