@@ -327,6 +327,11 @@ export class AskEngagement {
    * the shape gate. A count, never content — refusals must not leak what
    * they refused, not even by implication (RFC-0010 §4 rule 3). */
   refused = 0;
+  /** Instrument (RFC-0016 S9): claims offered to the viewer, and claims
+   * the viewer chose to keep — the promotion rate's two counts. An
+   * unkept claim exists nowhere else, so only the engagement can count. */
+  offered = 0;
+  promoted = 0;
 
   constructor(
     private readonly boundary: Boundary,
@@ -361,7 +366,10 @@ export class AskEngagement {
         case "claim": {
           const claim = CandidateAssertion.shape(out, context.neighborhood, this.agentActor, bound);
           if (claim === undefined) this.refused++;
-          else replies.push({ kind: "claim", claim });
+          else {
+            this.offered++;
+            replies.push({ kind: "claim", claim });
+          }
           break;
         }
         case "reveal": {
@@ -423,7 +431,9 @@ export class AskEngagement {
       confidence: claim.confidence,
       body: { text: claim.text },
     };
-    return this.boundary.append(this.agentActor, candidate);
+    const result = await this.boundary.append(this.agentActor, candidate);
+    if (result.accepted) this.promoted++;
+    return result;
   }
 
   /** The second law: the exchange evaporates (RFC-0010 §2, stratum 4). */

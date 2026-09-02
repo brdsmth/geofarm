@@ -148,12 +148,88 @@ export type GrantBody = {
 
 export const GRANT_CLASSIFICATION = "grant";
 
-function grantBodyOf(record: AdmittedRecord): GrantBody | undefined {
+/** Read a record as a grant, if it is one (RFC-0002 §4.1). */
+export function grantBodyOf(record: AdmittedRecord): GrantBody | undefined {
   if (record.kind !== "event" || record.classification !== GRANT_CLASSIFICATION) return undefined;
   const b = record.body as Partial<GrantBody> | undefined;
   if (b === undefined || typeof b.grantee !== "string" || b.scope === undefined) return undefined;
   if (!Array.isArray(b.capabilities)) return undefined;
   return b as GrantBody;
+}
+
+/**
+ * The grant projection as a pure function (C4/I5): standing grants as of a
+ * moment in knowledge time, over any set of records — admitted by then,
+ * not superseded by then, not lapsed by their own terms (RFC-0008 §2).
+ * The engine applies it to the whole log; a client may apply it to its
+ * own Reading, which is how "who could see what in June" is answered
+ * with no audit machinery anywhere (RFC-0002 T2, RFC-0016 S5).
+ */
+export function standingGrantsAt(records: readonly AdmittedRecord[], asOf: string): AdmittedRecord[] {
+  const cutoff = Date.parse(asOf);
+  const known = records.filter((r) => Date.parse(r.knowledgeTime) <= cutoff);
+  const supersededIds = new Set(
+    known.filter((r) => r.supersedes !== undefined).map((r) => r.supersedes as Id),
+  );
+  return known.filter((r) => {
+    const body = grantBodyOf(r);
+    if (body === undefined) return false;
+    if (supersededIds.has(r.id)) return false;
+    if (body.until !== undefined && Date.parse(body.until) < cutoff) return false;
+    return true;
+  });
+}
+
+/**
+ * The holdings an Actor derives from a set of standing grants — original
+ * authority over what they own (§4.4), received grants attenuated through
+ * the grantor's own holdings (I4), representation flowing the principal's
+ * reach through within scope (§1.4), and the horizon: an Actor may always
+ * view the grants that bound them (§2.3 — "an Actor should know the bounds
+ * of their own access"; RFC-0014 §2 — who I am here is knowledge).
+ */
+export function holdingsFrom(actor: Id, grants: readonly AdmittedRecord[]): Holding[] {
+  return holdingsOf(actor, grants, new Set());
+}
+
+function holdingsOf(actor: Id, grants: readonly AdmittedRecord[], visiting: Set<Id>): Holding[] {
+  if (visiting.has(actor)) return []; // cycle guard: attenuation converges
+  visiting.add(actor);
+
+  // Original authority: everything the Actor owns, all capabilities (§4.4).
+  const holdings: Holding[] = [
+    { scopes: [{ owners: [actor] }], capabilities: [...CAPABILITIES] },
+  ];
+
+  const horizon: Id[] = [];
+  for (const record of grants) {
+    const body = grantBodyOf(record) as GrantBody;
+    if (body.grantee !== actor) continue;
+    horizon.push(record.id);
+    const grantor = record.actors.actor;
+    const grantorHoldings = holdingsOf(grantor, grants, visiting);
+    for (const gh of grantorHoldings) {
+      // Attenuation (I4): a grantor confers only what they hold, and the
+      // conferred scope is the conjunction of theirs and the grant's.
+      const conferred = body.capabilities.includes("represent")
+        ? gh.capabilities // representation: the principal's reach, in scope
+        : body.capabilities.filter((c) => holdingConfers(gh, c));
+      if (conferred.length === 0) continue;
+      holdings.push({
+        scopes: [...gh.scopes, body.scope],
+        capabilities: conferred,
+      });
+    }
+  }
+  if (horizon.length > 0) {
+    holdings.push({
+      scopes: [{ classifications: [GRANT_CLASSIFICATION], ids: horizon }],
+      capabilities: ["view"],
+    });
+  }
+
+  visiting.delete(actor);
+  return holdings;
 }
 
 // ------------------------------------------------------------------ engine
@@ -171,7 +247,6 @@ export class AccessEngine {
    * lapsed by their own terms (RFC-0002 §4, RFC-0008 §2).
    */
   private async standingGrantsAt(asOf: string): Promise<AdmittedRecord[]> {
-    const cutoff = Date.parse(asOf);
     const all: AdmittedRecord[] = [];
     let watermark = 0;
     for (;;) {
@@ -180,17 +255,7 @@ export class AccessEngine {
       all.push(...page.records);
       watermark = page.watermark;
     }
-    const known = all.filter((r) => Date.parse(r.knowledgeTime) <= cutoff);
-    const supersededIds = new Set(
-      known.filter((r) => r.supersedes !== undefined).map((r) => r.supersedes as Id),
-    );
-    return known.filter((r) => {
-      const body = grantBodyOf(r);
-      if (body === undefined) return false;
-      if (supersededIds.has(r.id)) return false;
-      if (body.until !== undefined && Date.parse(body.until) < cutoff) return false;
-      return true;
-    });
+    return standingGrantsAt(all, asOf);
   }
 
   /**
@@ -201,40 +266,7 @@ export class AccessEngine {
    */
   async subWorldAt(actor: Id, asOf: string = new Date().toISOString()): Promise<SubWorld> {
     const grants = await this.standingGrantsAt(asOf);
-    const holdings = this.holdingsOf(actor, grants, new Set());
-    return { actor, asOf, holdings };
-  }
-
-  private holdingsOf(actor: Id, grants: AdmittedRecord[], visiting: Set<Id>): Holding[] {
-    if (visiting.has(actor)) return []; // cycle guard: attenuation converges
-    visiting.add(actor);
-
-    // Original authority: everything the Actor owns, all capabilities (§4.4).
-    const holdings: Holding[] = [
-      { scopes: [{ owners: [actor] }], capabilities: [...CAPABILITIES] },
-    ];
-
-    for (const record of grants) {
-      const body = grantBodyOf(record) as GrantBody;
-      if (body.grantee !== actor) continue;
-      const grantor = record.actors.actor;
-      const grantorHoldings = this.holdingsOf(grantor, grants, visiting);
-      for (const gh of grantorHoldings) {
-        // Attenuation (I4): a grantor confers only what they hold, and the
-        // conferred scope is the conjunction of theirs and the grant's.
-        const conferred = body.capabilities.includes("represent")
-          ? gh.capabilities // representation: the principal's reach, in scope
-          : body.capabilities.filter((c) => holdingConfers(gh, c));
-        if (conferred.length === 0) continue;
-        holdings.push({
-          scopes: [...gh.scopes, body.scope],
-          capabilities: conferred,
-        });
-      }
-    }
-
-    visiting.delete(actor);
-    return holdings;
+    return { actor, asOf, holdings: holdingsFrom(actor, grants) };
   }
 
   /**

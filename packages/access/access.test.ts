@@ -148,7 +148,9 @@ describe("P-18 — grants confer, expire, and revoke by Event", () => {
     );
     const during = await engine.subWorldAt(agronomist, "2026-08-01T00:00:00Z");
     const after = await engine.subWorldAt(agronomist, "2026-10-01T00:00:00Z");
-    expect(during.holdings.length).toBe(2);
+    // In force: original authority, the received holding, and the horizon
+    // (the grant itself, viewable by its grantee — RFC-0002 §2.3).
+    expect(during.holdings.length).toBe(3);
     expect(after.holdings.length).toBe(1); // only original authority remains
   });
 });

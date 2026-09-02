@@ -17,6 +17,28 @@ import { MemoryPersistence, PendingStore } from "../../../packages/client/stores
 
 export const NOW = "2026-07-01T12:00:00Z";
 
+/** The agronomic predicate (RFC-0016 C2): what an agronomist's engagement
+ * covers — the people, the places, and everything grown or observed;
+ * nothing financial. A scope is a list of kinds, never of things. */
+export const AGRONOMY = [
+  "organization",
+  "person",
+  "agent",
+  "farm",
+  "field",
+  "pond",
+  "building",
+  "road",
+  "planting",
+  "harvest",
+  "spray",
+  "note",
+  "maintenance",
+  "diagnosis",
+  "reading",
+  "anomaly",
+];
+
 function ring(pts: Coordinate[]): Coordinate[][] {
   return [[...pts, pts[0] as Coordinate]];
 }
@@ -61,18 +83,38 @@ export async function seedWorld(): Promise<SeededWorld> {
   await journal.admit(actor(sam, "person", "Sam (operator)"));
   await journal.admit(actor(assistant, "agent", "Farm assistant"));
 
-  // Membership: everyone here acts for the farm (RFC-0002 §1.4).
-  for (const person of [you, maria, sam]) {
+  // Membership: the owner and the operator act for the farm over
+  // everything (RFC-0002 §1.4 — a broad, long-lived representation).
+  for (const person of [you, sam]) {
     await journal.admit({
       id: newId(),
       kind: "event",
       classification: "grant",
       actors: { actor: org, onBehalfOf: [] },
       occurrence: { start: "2020-01-01T00:00:00Z" },
-      subjects: [person],
+      subjects: [org],
       body: { grantee: person, scope: {}, capabilities: ["represent"] },
     });
   }
+
+  // The agronomist's engagement (RFC-0016 C2; M6): a narrower, season-
+  // bounded representation over the agronomic classifications of the whole
+  // farm — a predicate, not a list of fields. She sees the people, the
+  // places, and the agronomy; never the books.
+  await journal.admit({
+    id: newId(),
+    kind: "event",
+    classification: "grant",
+    actors: { actor: you, onBehalfOf: [org] },
+    occurrence: { start: "2026-03-01T00:00:00Z" },
+    subjects: [org],
+    body: {
+      grantee: maria,
+      scope: { classifications: AGRONOMY },
+      capabilities: ["represent"],
+      until: "2026-11-01T00:00:00Z",
+    },
+  });
 
   // The assistant's standing (RFC-0002 §5.3): it represents the farm
   // within a predicate scope — agronomy, never the books. Its Reach is
@@ -84,7 +126,7 @@ export async function seedWorld(): Promise<SeededWorld> {
     classification: "grant",
     actors: { actor: org, onBehalfOf: [] },
     occurrence: { start: "2026-01-01T00:00:00Z" },
-    subjects: [assistant],
+    subjects: [org],
     body: {
       grantee: assistant,
       scope: {

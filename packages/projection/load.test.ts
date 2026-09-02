@@ -120,9 +120,10 @@ describe("P-22 — load rehearsal", () => {
     expect(visible.length).toBeGreaterThan(0);
     expect(visible.some((r) => r.classification === "financial")).toBe(false);
     const all = await p.listKnown();
-    // Granted content plus one: their own introduction record, reached by
-    // original authority over their contributions (RFC-0002 §4.4).
-    expect(all.viewable.length).toBe(FIELDS + NOTES - NOTES / 5 + 1);
+    // Granted content plus two: their own introduction record, reached by
+    // original authority over their contributions (RFC-0002 §4.4), and the
+    // grant that bounds them — the horizon is theirs to know (§2.3).
+    expect(all.viewable.length).toBe(FIELDS + NOTES - NOTES / 5 + 2);
 
     // Generous tripwires (PLAN-001 risk 1 escalates if these fail).
     expect(swMs).toBeLessThan(2000);
