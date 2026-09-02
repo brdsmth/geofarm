@@ -73,11 +73,14 @@ export function grantRecord(grantor: Id, body: GrantBody): CandidateRecord {
   };
 }
 
-export async function farmWorld() {
+export async function farmWorld(opts: { clockFrom?: string } = {}) {
+  // Deterministic knowledge clock: one second per admission from the
+  // given start, so knowledge-time projections are cleanly testable (C4).
   let tick = 0;
+  const from = Date.parse(opts.clockFrom ?? "2026-06-01T00:00:00Z");
   const journal = new Journal(
     new MemoryStore(),
-    () => new Date(Date.parse("2026-06-01T00:00:00Z") + ++tick * 1000).toISOString(),
+    () => new Date(from + ++tick * 1000).toISOString(),
   );
   const engine = new AccessEngine(journal);
 

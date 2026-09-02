@@ -166,6 +166,44 @@ export class Projection {
     return retracted.has(cursor.id) ? undefined : cursor;
   }
 
+  /**
+   * Every standing head of a record's supersession chain. One head is the
+   * ordinary case; more than one is a fork — two Actors corrected the same
+   * thing without hearing each other (offline, RFC-0012 §5), and the
+   * disagreement is preserved and derived (RFC-0009 §2), never resolved
+   * by write order. Whoever next authors a reconciliation collapses it.
+   */
+  async headsOf(id: Id): Promise<AdmittedRecord[]> {
+    const { viewable } = await this.load();
+    const byId = new Map(viewable.map((r) => [r.id, r]));
+    const supersedersOf = new Map<Id, AdmittedRecord[]>();
+    const retracted = new Set<Id>();
+    for (const r of viewable) {
+      if (r.supersedes !== undefined) {
+        supersedersOf.set(r.supersedes, [...(supersedersOf.get(r.supersedes) ?? []), r]);
+      }
+      if (r.retracts !== undefined) retracted.add(r.retracts);
+    }
+    // Back to the root, then out along every branch.
+    let root = byId.get(id);
+    if (root === undefined) return [];
+    while (root.supersedes !== undefined && byId.has(root.supersedes)) {
+      root = byId.get(root.supersedes) as AdmittedRecord;
+    }
+    const heads: AdmittedRecord[] = [];
+    const stack = [root];
+    while (stack.length > 0) {
+      const r = stack.pop() as AdmittedRecord;
+      const next = supersedersOf.get(r.id) ?? [];
+      if (next.length === 0) {
+        if (!retracted.has(r.id)) heads.push(r);
+      } else {
+        stack.push(...next);
+      }
+    }
+    return heads.sort((a, b) => a.seq - b.seq);
+  }
+
   /** An aggregate computed within the sub-world (S6: no global-then-redact). */
   async countWithin(region: Area): Promise<number> {
     return (await this.visibleWithin(region)).length;

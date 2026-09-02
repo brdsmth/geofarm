@@ -32,6 +32,7 @@ export type ReadForm =
   | { form: "visibility"; region: Area }
   | { form: "timeline"; id: Id }
   | { form: "standing"; id: Id }
+  | { form: "heads"; id: Id }
   | { form: "known" };
 
 export type ProjectRequest = {
@@ -77,6 +78,8 @@ export class Boundary {
         return p.timelineOf(request.read.id);
       case "standing":
         return p.standingOf(request.read.id);
+      case "heads":
+        return p.headsOf(request.read.id);
       case "known":
         return p.listKnown();
     }

@@ -127,7 +127,16 @@ export class ViewTrail {
  * promoted, nothing afterward unless kept. */
 export type Gesture = { id: string; geometry: Geometry; at: string };
 
+/**
+ * The on-device format of Pending, versioned (P-43): the one store that
+ * must survive not just process death but the app being replaced under
+ * it. A newer app reads every older format; an older app refuses a newer
+ * one rather than guessing — refusal loses nothing, a guess might.
+ */
+export const PENDING_FORMAT = 1;
+
 export type PendingState = {
+  format: number;
   gestures: Gesture[];
   /** Editing state (RFC-0014 §4): candidate records being composed. */
   drafts: CandidateRecord[];
@@ -135,15 +144,61 @@ export type PendingState = {
   submissions: CandidateRecord[];
 };
 
-/** The durability port: Pending must survive process death (RFC-0014 §1). */
+export class PendingFormatTooNew extends Error {
+  constructor(found: number) {
+    super(`pending format ${found} is newer than this app understands (${PENDING_FORMAT})`);
+    this.name = "PendingFormatTooNew";
+  }
+}
+
+/**
+ * Bring whatever was on disk up to the current format. Each step is a
+ * pure function from one format to the next; migration is tested every
+ * release (PLAN-001 risk 7) because it is the only code path where a
+ * farmer's unsent day could be lost by us rather than by the world.
+ */
+export function migratePending(raw: unknown): PendingState {
+  if (typeof raw !== "object" || raw === null) {
+    return { format: PENDING_FORMAT, gestures: [], drafts: [], submissions: [] };
+  }
+  let state = raw as Partial<PendingState> & { format?: number };
+  let format = typeof state.format === "number" ? state.format : 0;
+  if (format > PENDING_FORMAT) throw new PendingFormatTooNew(format);
+  while (format < PENDING_FORMAT) {
+    const step = MIGRATIONS[format];
+    if (step === undefined) break;
+    state = step(state);
+    format++;
+  }
+  return {
+    format: PENDING_FORMAT,
+    gestures: state.gestures ?? [],
+    drafts: state.drafts ?? [],
+    submissions: state.submissions ?? [],
+  };
+}
+
+/** Format 0 → 1: the unversioned M3 shape gains its format marker; every
+ * field it lacked defaults empty. Nothing is dropped. */
+const MIGRATIONS: Record<number, (s: Partial<PendingState>) => Partial<PendingState>> = {
+  0: (s) => ({
+    gestures: s.gestures ?? [],
+    drafts: s.drafts ?? [],
+    submissions: s.submissions ?? [],
+  }),
+};
+
+/** The durability port: Pending must survive process death (RFC-0014 §1).
+ * Adapters hand back whatever they hold, unparsed in shape; the store
+ * migrates it. */
 export interface PendingPersistence {
-  load(): PendingState | undefined;
+  load(): unknown;
   save(state: PendingState): void;
 }
 
 export class MemoryPersistence implements PendingPersistence {
   private state: PendingState | undefined;
-  load(): PendingState | undefined {
+  load(): unknown {
     return this.state;
   }
   save(state: PendingState): void {
@@ -154,12 +209,53 @@ export class MemoryPersistence implements PendingPersistence {
 /** File-backed persistence: the kill-and-restart guarantee, testably. */
 export class FilePersistence implements PendingPersistence {
   constructor(private readonly path: string) {}
-  load(): PendingState | undefined {
+  load(): unknown {
     if (!existsSync(this.path)) return undefined;
-    return JSON.parse(readFileSync(this.path, "utf8")) as PendingState;
+    return JSON.parse(readFileSync(this.path, "utf8"));
   }
   save(state: PendingState): void {
     writeFileSync(this.path, JSON.stringify(state));
+  }
+}
+
+/** Web Storage persistence: the shell's on-device store, keyed per Actor
+ * so two people sharing a phone never share an outbox. Reads and writes
+ * are guarded — a browser that refuses storage degrades to memory, and
+ * says nothing false about durability (the shell can ask `durable`). */
+export class StoragePersistence implements PendingPersistence {
+  readonly durable: boolean;
+  private fallback: PendingState | undefined;
+  constructor(
+    private readonly key: string,
+    private readonly storage: { getItem(k: string): string | null; setItem(k: string, v: string): void },
+  ) {
+    let durable = true;
+    try {
+      storage.getItem(key);
+    } catch {
+      durable = false;
+    }
+    this.durable = durable;
+  }
+  load(): unknown {
+    if (!this.durable) return this.fallback;
+    try {
+      const raw = this.storage.getItem(this.key);
+      return raw === null ? undefined : JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  }
+  save(state: PendingState): void {
+    if (!this.durable) {
+      this.fallback = structuredClone(state);
+      return;
+    }
+    try {
+      this.storage.setItem(this.key, JSON.stringify(state));
+    } catch {
+      this.fallback = structuredClone(state);
+    }
   }
 }
 
@@ -169,7 +265,13 @@ export class PendingStore {
 
   constructor(persistence: PendingPersistence) {
     this.persistence = persistence;
-    this.state = persistence.load() ?? { gestures: [], drafts: [], submissions: [] };
+    this.state = migratePending(persistence.load());
+    // Whatever format it arrived in, it leaves in this one.
+    this.persistence.save(this.state);
+  }
+
+  get format(): number {
+    return this.state.format;
   }
 
   private mutate(fn: (s: PendingState) => void): void {
