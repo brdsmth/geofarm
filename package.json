@@ -13,7 +13,11 @@
     "test": "bun test",
     "lint:vocab": "bun tools/lint-vocab.ts",
     "check": "bun run typecheck && bun test && bun run lint:vocab",
-    "app": "bun build apps/web/index.html --outdir=apps/web/dist && cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs apps/web/dist/ && bun apps/web/serve.ts"
+    "build:web": "bun build apps/web/index.html --outdir=apps/web/dist && cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs apps/web/dist/",
+    "app": "bun run build:web && bun apps/web/serve.ts",
+    "server": "bun run build:web && bun apps/server/index.ts",
+    "instruments": "bun tools/instruments/read.ts",
+    "instruments:live": "bun tools/instruments/read-live.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
@@ -21,6 +25,9 @@
     "typescript": "^5.6.0"
   },
   "dependencies": {
-    "maplibre-gl": "^6.0.0"
+    "@anthropic-ai/sdk": "^0.123.0",
+    "geotiff": "^3.0.5",
+    "maplibre-gl": "^6.0.0",
+    "zod": "^4.5.4"
   }
 }
