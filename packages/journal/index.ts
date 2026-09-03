@@ -62,6 +62,15 @@ export type WalkPage = {
   watermark: number;
 };
 
+/**
+ * What a reader of the log needs (RFC-0013 §2): the walk, and only the
+ * walk. A Journal is one; a watermark-keyed materialization of it
+ * (`MaterializedLog`) is another, and readers cannot tell them apart —
+ * which is the whole point: a materialization accelerates, never
+ * adjudicates (RFC-0014 law 2).
+ */
+export type LogReader = Pick<Journal, "walkFrom">;
+
 export class Journal {
   private readonly store: JournalStore;
   /** Serializes admissions: the single admission point of RFC-0013 §1. */

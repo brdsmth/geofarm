@@ -13,6 +13,7 @@
 
 import type { AdmittedRecord, Area, CandidateRecord, Id } from "../world/index.ts";
 import { AdmissionRejected, type Journal } from "../journal/index.ts";
+import { MaterializedLog } from "../journal/materialized.ts";
 import { AccessEngine, GRANT_CLASSIFICATION, matchesScope, type Scope } from "../access/index.ts";
 import { Projection, type Reading } from "../projection/index.ts";
 
@@ -50,17 +51,23 @@ export type BoundaryWalkPage = { records: AdmittedRecord[]; watermark: number };
 export class Boundary {
   private readonly journal: Journal;
   private readonly access: AccessEngine;
+  /** Every reading is taken over a watermark-keyed materialization of the
+   * log (RFC-0013 §2), refreshed by delta before each operation — the
+   * rescan debt of REVIEW-003 §2.F, paid without a second authority. */
+  private readonly log: MaterializedLog;
 
   constructor(journal: Journal) {
     this.journal = journal;
+    this.log = new MaterializedLog(journal);
     // The privileged path lives inside access; the boundary only ever asks
     // for sub-worlds and answers within them (PLAN-001 §2).
-    this.access = new AccessEngine(journal);
+    this.access = new AccessEngine(this.log);
   }
 
   private async projectionFor(actor: Id, asOf?: string): Promise<Projection> {
+    await this.log.refresh();
     const subWorld = await this.access.subWorldAt(actor, asOf ?? new Date().toISOString());
-    return new Projection(this.journal, subWorld);
+    return new Projection(this.log, subWorld);
   }
 
   /** Project: take a reading (RFC-0012 §2). */
@@ -100,8 +107,9 @@ export class Boundary {
       return { accepted: false, reasons: ["a record's acting actor must be its submitter (I1)"] };
     }
 
+    await this.log.refresh();
     const subWorld = await this.access.subWorldAt(actor);
-    const p = new Projection(this.journal, subWorld);
+    const p = new Projection(this.log, subWorld);
 
     // Claimed representation must be held (RFC-0002 §1.4, I7): content
     // authored on behalf of a principal will be principal-owned (RFC-0002
@@ -182,7 +190,7 @@ export class Boundary {
     let cursor = watermark;
     let grew = false;
     for (;;) {
-      const page = await this.journal.walkFrom(cursor, limit);
+      const page = await this.log.walkFrom(cursor, limit);
       if (page.records.length === 0) break;
       for (const r of page.records) {
         if (r.classification === GRANT_CLASSIFICATION) grew = true;

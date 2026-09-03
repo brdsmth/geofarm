@@ -14,7 +14,7 @@
 
 import type { AdmittedRecord, Geometry, Id, Kind, TemporalExtent } from "../world/index.ts";
 import { geometryWithinArea, temporalWithin } from "../world/spatial.ts";
-import type { Journal } from "../journal/index.ts";
+import type { LogReader } from "../journal/index.ts";
 
 export const PACKAGE = "@geofarm/access" as const;
 
@@ -235,9 +235,9 @@ function holdingsOf(actor: Id, grants: readonly AdmittedRecord[], visiting: Set<
 // ------------------------------------------------------------------ engine
 
 export class AccessEngine {
-  private readonly journal: Journal;
+  private readonly journal: LogReader;
 
-  constructor(journal: Journal) {
+  constructor(journal: LogReader) {
     this.journal = journal;
   }
 

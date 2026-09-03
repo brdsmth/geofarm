@@ -16,7 +16,7 @@
 
 import type { AdmittedRecord, Area, Geometry, Id } from "../world/index.ts";
 import { geometryIntersectsArea } from "../world/spatial.ts";
-import type { Journal } from "../journal/index.ts";
+import type { LogReader } from "../journal/index.ts";
 import { holdingConfers, matchesAll, type Capability, type SubWorld } from "../access/index.ts";
 
 export const PACKAGE = "@geofarm/projection" as const;
@@ -29,14 +29,14 @@ export type Reading =
   | { level: "discover"; stub: ExistenceStub };
 
 export class Projection {
-  private readonly journal: Journal;
+  private readonly journal: LogReader;
   private readonly subWorld: SubWorld;
   private cache:
     | { viewable: AdmittedRecord[]; discoverable: Set<Id>; place: Map<Id, Geometry | undefined> }
     | undefined;
 
   /** A Projection exists only for a sub-world. There is no unscoped form. */
-  constructor(journal: Journal, subWorld: SubWorld) {
+  constructor(journal: LogReader, subWorld: SubWorld) {
     this.journal = journal;
     this.subWorld = subWorld;
   }
