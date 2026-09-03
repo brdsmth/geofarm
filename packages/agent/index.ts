@@ -39,6 +39,28 @@ import { newId } from "../world/index.ts";
 import { geometryIntersectsArea } from "../world/spatial.ts";
 import { matchesScope } from "../access/index.ts";
 import type { AppendResult, Boundary } from "../boundary/index.ts";
+
+/** The door as the agent uses it: the walk and the append, wherever they are. */
+export type Door = Pick<Boundary, "walk" | "append">;
+
+/** The whole Reach, page after page (RFC-0012 §4) — each record once. */
+export async function walkAll(door: Pick<Door, "walk">, actor: Id): Promise<AdmittedRecord[]> {
+  const seen = new Set<Id>();
+  const out: AdmittedRecord[] = [];
+  let watermark = 0;
+  for (;;) {
+    const page = await door.walk(actor, watermark);
+    if (page.records.length === 0) break;
+    for (const r of page.records) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        out.push(r);
+      }
+    }
+    watermark = page.watermark;
+  }
+  return out;
+}
 import type { Gesture, ReadingStore, View } from "../client/stores/index.ts";
 
 export const PACKAGE = "@geofarm/agent" as const;
@@ -113,6 +135,24 @@ export type Neighborhood = {
 /** Stratum 4 — the exchange so far: apparatus, ephemeral (RFC-0010 §2). */
 export type Turn = { ask: string; replies: Reply[] };
 
+/** The exchange as an engine reads it: what was asked and what was
+ * answered, in words — a candidate-Assertion's text and confidence, a
+ * proposal's text, a question. Sealed claims stay with the engagement;
+ * only their saying travels, which is what lets a context cross a wire. */
+export type ReplySummary = { kind: Reply["kind"]; text: string; confidence?: number };
+export type EngagementTurn = { ask: string; replies: readonly ReplySummary[] };
+
+export function summarizeTurn(turn: Turn): EngagementTurn {
+  return {
+    ask: turn.ask,
+    replies: turn.replies.map((r) =>
+      r.kind === "claim"
+        ? { kind: r.kind, text: r.claim.text, confidence: r.claim.confidence }
+        : { kind: r.kind, text: r.text },
+    ),
+  };
+}
+
 export type AgentContext = {
   /** Who is reasoning: the AI Actor's own identity, in view of itself —
    * its prior claims in the Neighborhood are recognizably its own. */
@@ -120,7 +160,7 @@ export type AgentContext = {
   frame: Frame;
   gesture: GestureStratum;
   neighborhood: Neighborhood;
-  engagement: readonly Turn[];
+  engagement: readonly EngagementTurn[];
 };
 
 /**
@@ -131,15 +171,14 @@ export type AgentContext = {
  * two sub-worlds' actual contents, never from privileged machinery.
  */
 export async function assembleContext(
-  boundary: Boundary,
+  boundary: Door,
   agentActor: Id,
   stores: ViewerStores,
   ask: string,
   engagement: readonly Turn[],
 ): Promise<AgentContext> {
   // The agent's side of the ring: its own scoped feed (RFC-0012 §4).
-  const reach = await boundary.walk(agentActor, 0);
-  const agentSees = new Set(reach.records.map((r) => r.id));
+  const agentSees = new Set((await walkAll(boundary, agentActor)).map((r) => r.id));
 
   const conversable = new Set<Id>();
   const records = new Map<Id, AdmittedRecord>();
@@ -195,7 +234,7 @@ export async function assembleContext(
     frame: { view, revealed },
     gesture: { selection: view.selection, regions: stores.gestures, ask },
     neighborhood: { conversable, records, entries },
-    engagement,
+    engagement: engagement.map(summarizeTurn),
   };
 }
 
@@ -334,7 +373,7 @@ export class AskEngagement {
   promoted = 0;
 
   constructor(
-    private readonly boundary: Boundary,
+    private readonly boundary: Door,
     private readonly agentActor: Id,
     private readonly reasoner: Reasoner,
     private readonly stores: ViewerStores,

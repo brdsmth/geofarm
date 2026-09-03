@@ -18,6 +18,7 @@ import type { AdmittedRecord, Geometry, Id } from "../world/index.ts";
 import { newId } from "../world/index.ts";
 import { geometryIntersectsArea } from "../world/spatial.ts";
 import type { Boundary } from "../boundary/index.ts";
+import { walkAll } from "./index.ts";
 
 /** The mechanism port: a scene's vegetation index, or nothing readable. */
 export type SceneIndex = (scene: AdmittedRecord) => number | undefined;
@@ -56,7 +57,7 @@ export class AnomalyJob {
    * are authored; steady states are left standing.
    */
   async run(): Promise<AnomalyRun> {
-    const reach = (await this.boundary.walk(this.agentActor, 0)).records;
+    const reach = await walkAll(this.boundary, this.agentActor);
     const run: AnomalyRun = { authored: [], unchanged: 0, rejected: [] };
 
     const fields = reach.filter((r) => r.kind === "entity" && r.classification === "field");
