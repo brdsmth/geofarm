@@ -7,6 +7,7 @@
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
+| **Revised** | 2026-09-03 — Amendment 1 (per REVIEW-004 §6) |
 | **Depends on** | RFC-0000, RFC-0001, RFC-0002, RFC-0004, RFC-0007, RFC-0009, RFC-0011 |
 | **Supersedes** | — |
 | **Superseded by** | — |
@@ -83,7 +84,7 @@ Synchronization systems exist to answer "what changed?" — and they are usually
 The consequences arrange themselves:
 
 - **Catch-up is a projection.** A consumer returning after an hour or a season asks the same question: *project my scope, from my watermark forward.* The answer is complete by construction — including **backfill**: content about the deep past that arrived recently (RFC-0011 §4) appears in the walk at its knowledge time, which is exactly when this consumer could first have learned it. Synchronizing along knowledge time is what makes late-arriving history unproblematic; a sync keyed to occurrence time would miss it forever.
-- **Scope shapes the feed.** Each consumer's walk is bounded by its sub-world (RFC-0002 §2.3): the feed *is* a scoped projection, so nothing outside an Actor's grants ever transits the boundary — not as data, not as tombstones, not as gaps that describe what they hide. A grant newly issued admits its scope's *existing* content into the next walk (the consumer's accessible world grew; its watermark walk delivers the difference); a revocation removes forward flow only, honestly (RFC-0002 §4.3).
+- **Scope shapes the feed.** Each consumer's walk is bounded by its sub-world (RFC-0002 §2.3): the feed *is* a scoped projection, so nothing outside an Actor's grants ever transits the boundary — not as data, not as tombstones, not as gaps that describe what they hide. A grant newly issued admits its scope's *existing* content into the next walk (the consumer's accessible world grew; its watermark walk delivers the difference); a revocation removes forward flow only, honestly (RFC-0002 §4.3). *(Amendment 1, per REVIEW-004 §4.1 — normative.)* **The door owes the grown world without remembering the consumer:** when a Grant admitting the consumer lies in the delta since its watermark, the walk re-delivers whatever the consumer's sub-world now admits at or below that watermark, and the consumer's Reading keeps each record once, by identity. A stateless door cannot know what a consumer already holds; re-delivery is the honest cost, and identity is what makes it free.
 - **Continuous and periodic following are the same act at different cadence.** A live telemetry consumer and a nightly accounting export differ in how often they walk, not in what walking is. "Push versus pull" is transport; the contract knows only the walk.
 
 ---
@@ -128,7 +129,7 @@ Two different things version, and the architecture disposes of both without vers
 - **No Resources.** Addressable: identities (permanent handles), readings (View-shaped values: scope ∧ filter, as-of, form), submissions (attributed candidate content). The interface is the ontology.
 - **Two operations and a clock**: Project and Append, walked along knowledge time. No update, no delete, no permissions API, no feature verbs — each absence by construction.
 - **Consistency is monotonic knowledge**: every reading is complete-as-of its watermark; knowledge only grows; staleness is stated, never disguised; no global "now" is promised or needed.
-- **Synchronization is reading the log the world already is**: catch-up, backfill, live-following, and scope-bounded feeds are all the same knowledge-time walk at different cadences.
+- **Synchronization is reading the log the world already is**: catch-up, backfill, live-following, and scope-bounded feeds are all the same knowledge-time walk at different cadences. A grant in the delta re-delivers the grown world; identity dedups it (Amendment 1).
 - **Offline is high-latency participation**: honest stale readings; offline authorship as late-arriving knowledge; reconnection = Append + Project; races degrade to preserved disagreement; enforcement lag is bounded and visible.
 - **Permissions are absent because access is prior**: every consumer an Actor, every operation sub-world-bounded, denial dissolved into absence via *discover*, administration as Grant-appends, and a public Actor that may read what is published but can never author.
 - **Versioning**: content accumulates (identity + time is the version); the contract versions by RFC amendment, additive by default, stable because the ontology is.
@@ -150,6 +151,14 @@ Two different things version, and the architecture disposes of both without vers
 **What was not designed.** Rate, quota, and abuse (mechanism, with one conceptual hook: abusive authorship is *attributed* authorship — the record identifies its polluter, per REVIEW-001's threat-model note, which still deserves its own review); the shape of readings for very large payloads (rasters — mechanism); and identified-but-unverified Actors (above). Also deliberately absent: any notion of "session" — the walk's watermark is the only continuity a consumer needs, and statelessness of the boundary follows from readings being values.
 
 **Overall.** Highest confidence: synchronization-as-the-log (§4) — it is the event-driven principle (RFC-0000 §2.5) cashing its largest check, and it dissolves what is ordinarily an entire subsystem into a projection. Lowest confidence: the tension between the two-operation purity and the conveniences real consumers will demand — not because the decomposition is wrong, but because holding the "no semantics in the sugar" line requires vigilance this document can mandate and not enforce. If this RFC is wrong, it is wrong there, or in the watermark's idealized order — both named, both testable, both assigned. Stated plainly, so the first transport built against this contract knows exactly which promises are load-bearing.
+
+## 10. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-09-03 | REVIEW-004 §4.1, §6 (adopted after milestone M8) | §4: the grown-world clause made explicit — a Grant in a consumer's delta obliges the walk to re-deliver what the sub-world now admits below the watermark, with the Reading keeping each record once by identity. No semantic change; the sentence was silent on *how* a stateless door knows the world grew, and the first implementation read it wrong. §8 restated accordingly. |
+
+**User Experience Implications (Amendment 1).** *Projection:* when someone lets you see the farm, the whole farm's history is simply there on your next visit — not only what happens from now on. *Concealment:* watermarks, deltas, and re-delivery are invisible; nothing is shown twice. *Leak check:* no internal term surfaces. *Wholeness:* a viewer who was never newly granted anything never meets this clause at all.
 
 ---
 

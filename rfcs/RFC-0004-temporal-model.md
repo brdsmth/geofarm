@@ -7,6 +7,7 @@
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
+| **Revised** | 2026-09-03 — Amendment 1 (per REVIEW-004 §6) |
 | **Depends on** | RFC-0000, RFC-0001, RFC-0003 |
 | **Supersedes** | — |
 | **Superseded by** | — |
@@ -110,6 +111,8 @@ Four conceptual commitments, none of them a storage scheme:
 
 Revision, corrections, and superseded Assertions are therefore not exceptions to preservation — they are *how preservation works.* The system that never overwrites is not the system that never changes its mind; it is the system that records every change of mind as a further, dated fact.
 
+*(Amendment 1, per REVIEW-004 §4.4 — decided.)* One shape question the offline experiment forced: **a record supersedes at most one record.** When two Actors have corrected the same thing without hearing each other (RFC-0012 §5), the chain has two standing heads, and settling it takes two acts — a supersession of the head that stands and a retraction of the one that does not. A merge-shaped supersession, one record superseding several, is deliberately not admitted: a fork should be *visibly* settled, one decision per head, each separately revisitable, never quietly collapsed into a single act whose halves cannot be told apart later. Two acts is the honest cost, and it is small.
+
 ---
 
 ## 6. Can objects exist before events?
@@ -187,7 +190,7 @@ Symmetric with RFC-0003's spatial summary.
 - **Structure — the Event in time.** An Event is a recorded occurrence with temporal extent (instant or interval), immutable once entered, and either descriptive (an Observation, reporting the world) or performative (acting upon it). Temporal relationships — before, during, overlapping — are derived from the times, never declared.
 - **Invariant — identity and the recorded past.** Neither changes. The past only grows.
 - **Derivative — the present.** State is the projection of the immutable Events onto persistent identities, as of a chosen moment. Every past present is equally reconstructable.
-- **History is preserved by construction.** Append-only, immutable past, correction-by-addition, bitemporal — the world's evolution and the model's understanding of it, both retained.
+- **History is preserved by construction.** Append-only, immutable past, correction-by-addition, bitemporal — the world's evolution and the model's understanding of it, both retained. A record supersedes at most one record; a fork is settled one head at a time (Amendment 1).
 - **One history, not many.** Time is first-class. Objects do not own timelines; an object's timeline is a derived filter of the single shared history.
 
 Objects may exist before any Event (the world precedes the record). Events about the world always have a place, intrinsic or inherited; only Events about agency may be placeless. An Event may reference any number of objects and belongs to none of them.
@@ -211,6 +214,14 @@ The reduction, interrogated.
 **Does first-class time (§9) leave per-object history too weak?** By making an object's timeline a derived filter rather than a possession, I may have made the most common real query — "show me this field's history" — sound second-class, a mere projection of something grander. In practice it is the query users run most. I am confident the architecture is right (ownership fragments history and cannot absorb multi-object and objectless Events), but the document should not be read as deprioritizing per-object views; they are first-class *experiences* built on a first-class *history*, and the distinction between a derived view and an unimportant one must not be blurred. This is a framing risk, not an architectural one, but worth naming.
 
 **Overall.** The claims I am most confident in are the invariants (§4) and first-class time (§9) — both are clean, both complete a symmetry with RFC-0003 that has independent force, and both fall directly out of commitments already frozen. The claim I am least confident in is bitemporality (§1): it is either the most important idea here or the most over-built one, and which it is depends on how often the platform's real history separates what was true from what was known. If this temporal model is wrong, it is probably wrong there. Stated plainly, so the next author knows which stone to turn first.
+
+## 12. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-09-03 | REVIEW-004 §4.4, §6 (adopted after milestone M8) | §5: decided that a record supersedes at most one record — no merge-shaped supersession. Settling a fork is a supersession plus a retraction, two visible acts. The record envelope (RFC-0013 §1, `supersedes: Id`) already had this shape; it is now a decision rather than an accident. §10 restated accordingly. |
+
+**User Experience Implications (Amendment 1).** *Projection:* "Two people redrew this line — both are kept until someone settles it," and settling is picking the line that stands and saying the other one is withdrawn. *Concealment:* chains, heads, and linkage are invisible. *Leak check:* no internal term surfaces. *Wholeness:* a farm where nobody ever corrects the same thing twice at once never meets this clause.
 
 ---
 

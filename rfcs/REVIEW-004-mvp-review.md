@@ -70,7 +70,7 @@ One informal note, not a strain: RFC-0011 §9 said the conservative border defau
 
 ## 6. Amendments proposed
 
-Through the normal open process, none executed here:
+Through the normal open process, none executed here *(all four adopted 2026-09-03 — see each RFC's amendment log, and PLAN-001 §4 rule 4)*:
 
 - **RFC-0012 §4** — the grown-world clause made explicit (§4.1 above).
 - **RFC-0002 §2.3** — the horizon stated normatively (§4.2).

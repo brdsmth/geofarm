@@ -7,6 +7,7 @@
 | **Status** | Draft |
 | **Author** | Bradley |
 | **Created** | 2026-07-23 |
+| **Revised** | 2026-09-03 — Amendment 1 (per REVIEW-004 §6) |
 | **Depends on** | RFC-0000, RFC-0001 |
 | **Pursuant to** | REVIEW-001 |
 | **Supersedes** | — |
@@ -91,6 +92,8 @@ The rule that makes scoped access sound in a derivation-heavy architecture (REVI
 > **Every question an Actor can pose is answered as if their accessible sub-world were the whole world.** Visibility, spatial relationships, timelines, projections of state, aggregates, and the twin's self-knowledge of ignorance (RFC-0007 §7) are all computed *within* the Actor's sub-world — never computed globally and then redacted.
 
 Scoping the inputs rather than the outputs is what prevents leakage-by-derivation: an excluded thing casts no adjacency, no silhouette in a coverage map, no perturbation in an aggregate, because for that Actor it does not participate in any computation at all. What an Actor *can* know is the shape of their own horizon — where their accessible world ends — which is not a leak but a requirement: an Actor should know the bounds of their own access.
+
+*(Amendment 1, per REVIEW-004 §4.2 — normative.)* That requirement is a holding, not a hope: **every Grant naming an Actor as grantee is viewable by that Actor**, at view depth, for as long as the grant is in the record — including a revocation, which is a superseding Grant naming the same grantee (§4.1). This is the one reading a sub-world always contains that nobody granted explicitly. Without it, "who I am here is knowledge" (RFC-0014 §2) could not be true, and the build found it had to state the horizon in code before it was stated here.
 
 Existence apart from content is governed by the *discover* capability (§3.1): a Scope may be granted at discover-depth (a thing exists here) without view-depth (what it is). Where nothing is granted, not even existence is answerable.
 
@@ -252,7 +255,7 @@ This section records the attempt to break the design, question by question, incl
 ## 9. The frozen collaboration model
 
 - **Actor** — the sole primitive of agency (RFC-0001), now structured: representation (one mechanism for membership and delegation), dual attribution, attenuation.
-- **Scope** — a predicate over world content along its intrinsic dimensions; imposed, not chosen; the viewer's horizon. The sub-world rule: every question is answered as if the Actor's accessible sub-world were the whole world.
+- **Scope** — a predicate over world content along its intrinsic dimensions; imposed, not chosen; the viewer's horizon. The sub-world rule: every question is answered as if the Actor's accessible sub-world were the whole world. The horizon is itself a holding: the grants that bound an Actor are viewable by that Actor (Amendment 1).
 - **Capability** — discover, view, author, represent; frozen, ordered, scope-bounded, additive-only, attenuating, projected, attributed. Granting is authorship of Grants, not a fifth capability.
 - **Grant** — an Event: (grantor, grantee, scope, capabilities, terms); created, changed, revoked, and expired as history; access state is a projection of it. Revocation ends projections, never memory.
 - **Ownership** — original authority, following contribution; the root of every grant chain; transferable by Event.
@@ -272,6 +275,14 @@ This section records the attempt to break the design, question by question, incl
 **What was not designed.** Co-presence (two Actors in one View) was assigned to this RFC by REVIEW-001 and is *intentionally returned* to the interaction layer: drafting showed it needs nothing from the access model beyond what §5.3 already provides (each participant's scope bounds what the shared session can show them — the intersection problem), and its remaining substance — simultaneous attention, divergence, merging — is interaction design, not collaboration architecture. RFC-0006's revision (REVIEW-001 §9) should absorb it. If that judgment is wrong, the gap is in interaction, not access.
 
 **The standing bet, restated.** This document is the hypothesis REVIEW-001 stated, now fully drawn. Its deepest wager is unchanged: that predicate-scoping with the sub-world rule can be made sound in practice, so that the object never needs to return as the unit of access. Every invariant here strengthens the bet; none discharges it. The first implementation RFC that cannot honor the sub-world rule is the signal to reconvene — with this section as the agenda.
+
+## 11. Amendment log
+
+| Amendment | Date | Authority | Changes |
+|---|---|---|---|
+| 1 | 2026-09-03 | REVIEW-004 §4.2, §6 (adopted after milestone M8) | §2.3: the horizon stated normatively — every Grant naming an Actor as grantee is viewable by that Actor, revocations included. Previously a requirement in prose and an implementation reading in `access`; now a consequence of the sub-world rule. §9 restated accordingly. |
+
+**User Experience Implications (Amendment 1).** *Projection:* "Who can see this?" and "what am I allowed to see?" are the same reading from two sides; a person always knows the terms they were let in on. *Concealment:* holdings and grant projection stay invisible; the farmer sees "shared with Maria until harvest." *Leak check:* no internal term surfaces. *Wholeness:* a member with a universal grant never notices the horizon; only a scoped collaborator meets it, and only as the plain fact of what they were shown.
 
 ---
 

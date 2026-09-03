@@ -102,7 +102,7 @@ The rules the layout must enforce — each traceable, each mechanically checkabl
 1. **Only `journal` writes; nothing mutates.** No module holds update/delete paths anywhere (RFC-0004 §5, RFC-0012 §2). Supersession and retraction are appends with linkage.
 2. **`projection` cannot be called without a sub-world.** The argument is non-optional; a "global" projection exists only inside `access`'s one privileged path (RFC-0002 §2.3, RFC-0010 §4).
 3. **`boundary` is the only import allowed to `feeds`, `agent`, and `client`.** Internal packages are invisible to consumers — enforced by package visibility (RFC-0012; S3).
-4. **`feeds` output candidate content, never conclusions.** Epistemic classification is configuration, reviewed and versioned, defaulting conservative (uncertain → Assertion; RFC-0011 §9).
+4. **`feeds` output candidate content, never conclusions.** Epistemic classification — including the classification *names* an adapter admits records under — is configuration, reviewed and versioned, defaulting conservative (uncertain → Assertion; RFC-0011 §2, Amendment 1). An adapter is config-and-translation only when its vocabulary is config too.
 5. **`client` holds exactly three stores**; code review rejects a fourth (RFC-0014, law 1; S2). Pending is durable from its first commit (RFC-0014 §1).
 6. **`render` reads projections and resolves picks through the Reading**; caches carry watermark keys; no cache adjudicates (RFC-0015 §6, RFC-0014 law 2).
 7. **`surface` owns every user-facing string**; a lint rule blocks internal vocabulary (entity, event, assertion, actor, scope, grant, watermark…) from client copy (RFC-0000 §2.6; S10).
