@@ -23,6 +23,8 @@ export const LENS_STYLE: Record<string, { color: string; fill: boolean }> = {
   places: { color: "#5bc8f5", fill: true },
   work: { color: "#f2a65a", fill: true },
   soil: { color: "#c9a27e", fill: true },
+  weather: { color: "#8fd3ff", fill: true },
+  imagery: { color: "#b8b8ff", fill: true },
   office: { color: "#e6e6e6", fill: true },
 };
 
@@ -44,6 +46,8 @@ const GROUP_COLOR: Record<string, string> = {
   paper: "#e6e6e6",
   place: "#5bc8f5",
   soil: "#c9a27e",
+  weather: "#8fd3ff",
+  imagery: "#b8b8ff",
 };
 
 function toGeoJSONGeometry(g: Geometry): GeoJSON.Geometry {

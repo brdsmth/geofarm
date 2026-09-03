@@ -28,9 +28,12 @@ import {
   type Reply,
 } from "../../../packages/agent/index.ts";
 import { RuleReasoner } from "../../../packages/agent/reasoner.ts";
-import { Session } from "../../../packages/client/interaction/index.ts";
+import { RemoteReasoner } from "../../../packages/agent/remote.ts";
+import type { Reasoner } from "../../../packages/agent/index.ts";
+import { RemoteBoundary } from "../../../packages/boundary/remote.ts";
+import { Session, type BoundaryPort } from "../../../packages/client/interaction/index.ts";
 import { PendingStore, StoragePersistence } from "../../../packages/client/stores/index.ts";
-import { AGRONOMY, NOW, seedWorld } from "./seed.ts";
+import { AGRONOMY, NOW, WEATHER_CLASSIFICATIONS, seedWorld } from "./seed.ts";
 import {
   boundsOf,
   createMap,
@@ -66,6 +69,9 @@ const LENSES = [
   // The sixth layer (S4, RFC-0016 §4): soil, added after launch touching
   // this lens definition and the seed's border config — nothing else.
   { name: "soil", filter: { classifications: ["soil-site", "soil-sample"] } },
+  // The live sources (RFC-0016 L1): weather and imagery, each a lens.
+  { name: "weather", filter: { classifications: WEATHER_CLASSIFICATIONS } },
+  { name: "imagery", filter: { classifications: ["imagery"] } },
   { name: "office", filter: { classifications: ["invoice", "lien"] } },
 ];
 
@@ -87,10 +93,22 @@ const GROUP: Record<string, string> = {
   pond: "place",
   building: "place",
   road: "place",
+  "weather-station": "weather",
+  "weather-reading": "weather",
+  "weather-estimate": "weather",
+  forecast: "weather",
+  imagery: "imagery",
 };
 
 const MONTH0 = Date.UTC(2019, 0, 1);
-const MONTHS = 90; // Jan 2019 .. Jun 2026, slider max = today
+/** Whole months from Jan 2019 to the month of `iso`: the slider's max is today. */
+const monthsUntil = (iso: string): number => {
+  const d = new Date(iso);
+  return (d.getUTCFullYear() - 2019) * 12 + d.getUTCMonth();
+};
+let MONTHS = monthsUntil(NOW);
+/** "Now" for this shell: the seeded season's, or the live world's. */
+let now = NOW;
 const SEASON_END = "2026-11-01";
 
 function monthToIso(idx: number): string {
@@ -125,8 +143,59 @@ const text = (r: AdmittedRecord | undefined): string => {
   return kinds[r?.classification ?? ""] ?? "";
 };
 
+/** What a shell needs of a world, wherever it is. */
+type World = {
+  org: Id;
+  people: Id[];
+  assistant: Id;
+  boundary: BoundaryPort;
+  reasoner: Reasoner;
+  /** Served beside a server (shared, live) or seeded on this device. */
+  live: boolean;
+  engine: string;
+  reset: () => void;
+};
+
+type Served = { org: Id; people: Id[]; assistant: Id; now: string; engine: string };
+
+/**
+ * One door, two worlds (RFC-0012 §0 — transport is mechanism). Served
+ * beside a server, the shell speaks to its door and its engine; served
+ * alone, it seeds the demo farm on this device and reasons by rule.
+ */
+async function openWorld(): Promise<World> {
+  const served = await fetch("/api/world")
+    .then((r) => (r.ok ? (r.json() as Promise<Served>) : undefined))
+    .catch(() => undefined);
+  if (served !== undefined) {
+    now = served.now;
+    return {
+      org: served.org,
+      people: served.people,
+      assistant: served.assistant,
+      boundary: new RemoteBoundary("/api"),
+      reasoner: new RemoteReasoner("/api/engine"),
+      live: true,
+      engine: served.engine,
+      reset: () => {},
+    };
+  }
+  const seeded = await seedWorld(localStorage);
+  return {
+    org: seeded.org,
+    people: seeded.people,
+    assistant: seeded.assistant,
+    boundary: seeded.boundary,
+    reasoner: new RuleReasoner(),
+    live: false,
+    engine: "rules",
+    reset: seeded.reset,
+  };
+}
+
 async function boot(): Promise<void> {
-  const world = await seedWorld(localStorage);
+  const world = await openWorld();
+  MONTHS = monthsUntil(now);
 
   // ------------------------------------------------------------ chrome copy
   el("brand-name").textContent = shell.brand;
@@ -138,6 +207,10 @@ async function boot(): Promise<void> {
   el("season").setAttribute("aria-label", mapCopy.timeSlider);
   el("layers").setAttribute("aria-label", mapCopy.layers);
   el("draw-ask").textContent = mapCopy.drawToAsk;
+  // Which world, and which intelligence: said once, plainly (RFC-0000 §2.6).
+  el("status").textContent = `${world.live ? shell.liveWorld : shell.deviceWorld} · ${
+    world.engine === "rules" ? shell.answeredByRules : shell.answeredBy(world.engine)
+  }`;
 
   // ----------------------------------------------------------- the viewer
   // One Session per viewer (RFC-0006 §1): switching who is looking swaps
@@ -154,7 +227,7 @@ async function boot(): Promise<void> {
       actor,
       world.boundary,
       new PendingStore(new StoragePersistence(`geofarm-pending:${actor}`, localStorage)),
-      NOW,
+      now,
     );
     // Reconnection is Append + Project (RFC-0012 §5): whatever this
     // viewer left unsent goes first, then the walk.
@@ -171,7 +244,7 @@ async function boot(): Promise<void> {
     engagement = new AskEngagement(
       world.boundary,
       world.assistant,
-      new RuleReasoner(),
+      world.reasoner,
       viewerStores(session),
       world.org,
     );
@@ -280,7 +353,7 @@ async function boot(): Promise<void> {
   };
 
   const frameHtml = (): string =>
-    session.view.time.start === NOW
+    session.view.time.start === now
       ? ""
       : `<div class="frame">${story.asOf(seasonLabel.textContent ?? "")}</div>`;
 
@@ -289,9 +362,12 @@ async function boot(): Promise<void> {
   // page. Everything up to the bound time, newest first, with its place.
   const farmStoryOf = (): string => {
     const bound = Date.parse(session.view.time.end ?? session.view.time.start);
+    // The sources' streams have their own lenses; the pulse is people's work.
+    const streamed = new Set([...WEATHER_CLASSIFICATIONS, "imagery"]);
     const rows = session.reading
       .all()
       .filter((r) => r.kind !== "entity" && r.kind !== "actor" && r.classification !== "grant")
+      .filter((r) => !streamed.has(r.classification))
       .filter((r) => Date.parse(r.occurrence.start) <= bound)
       .sort((a, b) => Date.parse(b.occurrence.start) - Date.parse(a.occurrence.start))
       .slice(0, 14)
@@ -320,10 +396,25 @@ async function boot(): Promise<void> {
     const crop = r.classification === "field" ? cropOf(id) : "";
     const growing =
       crop !== "" ? `<div class="since growing">${shell.growing(crops[crop] ?? crop)}</div>` : "";
+    // A satellite pass shows its preview: the pixels are payload, shown
+    // as what they are (RFC-0003 §3.1), with the provider's own facts.
+    const scene = r.classification === "imagery" ? sceneHtml(r) : "";
     const rows = (bundle?.timeline ?? []).slice().reverse().map((h) => rowHtml(h)).join("");
     const rowsOrQuiet =
       rows.length > 0 ? `<h3>${shell.whatsHappened}</h3>${rows}` : `<p class='quiet'>${shell.nothingYet}</p>`;
-    return `<h2>${name}</h2>${since}${growing}${frameHtml()}${fork}${rowsOrQuiet}`;
+    return `<h2>${name}</h2>${since}${growing}${scene}${frameHtml()}${fork}${rowsOrQuiet}`;
+  };
+
+  const sceneHtml = (r: AdmittedRecord): string => {
+    const b = r.body as { thumbnail?: string; cloudCover?: number; platform?: string } | undefined;
+    const facts = [
+      b?.cloudCover !== undefined ? shell.cloudCover(Math.round(b.cloudCover)) : "",
+      b?.platform !== undefined ? shell.seenFrom(b.platform) : "",
+    ]
+      .filter((f) => f !== "")
+      .join(" · ");
+    const img = b?.thumbnail !== undefined ? `<img class="scene" src="${b.thumbnail}" alt="" />` : "";
+    return `${img}${facts !== "" ? `<div class="since">${facts}</div>` : ""}`;
   };
 
   // --------------------------------------------- sharing (M6 at the surface)
@@ -392,7 +483,7 @@ async function boot(): Promise<void> {
         capabilities: ["represent"],
         ...(until !== "" ? { until: new Date(until).toISOString() } : {}),
         ...(gestureId !== undefined ? { gestureId } : {}),
-        at: NOW,
+        at: now,
       });
       session.commit(draft);
       void session.send().then(async (result) => {
@@ -408,7 +499,7 @@ async function boot(): Promise<void> {
     });
     for (const b of panelBody.querySelectorAll<HTMLButtonElement>("button.stop")) {
       b.addEventListener("click", () => {
-        const draft = session.revoke(b.dataset.id as Id, NOW);
+        const draft = session.revoke(b.dataset.id as Id, now);
         if (draft === undefined) return;
         session.commit(draft);
         b.disabled = true;
@@ -559,7 +650,7 @@ async function boot(): Promise<void> {
       e.preventDefault();
       const body = input.value.trim();
       if (body === "") return;
-      const draftId = session.annotate("note", { text: body }, NOW);
+      const draftId = session.annotate("note", { text: body }, now);
       session.commit(draftId);
       void session.send().then(async (result) => {
         if (result.rejected.length > 0 || result.deferred > 0) {
@@ -679,7 +770,9 @@ async function boot(): Promise<void> {
   const todayBtn = el<HTMLButtonElement>("today");
   // Year ticks (REVIEW-003 §4.4): the scrubber says what it controls.
   const ticks = el<HTMLElement>("ticks");
-  for (let year = 2019; year <= 2026; year++) {
+  seasonInput.max = String(MONTHS);
+  seasonInput.value = String(MONTHS);
+  for (let year = 2019; year <= new Date(now).getUTCFullYear(); year++) {
     const idx = (year - 2019) * 12;
     const span = document.createElement("span");
     span.textContent = String(year);
@@ -689,7 +782,7 @@ async function boot(): Promise<void> {
   const applySeason = (): void => {
     const idx = seasonInput.valueAsNumber;
     if (idx >= MONTHS) {
-      session.navigateTime({ start: NOW });
+      session.navigateTime({ start: now });
       seasonLabel.textContent = shell.today;
       todayBtn.hidden = true;
     } else {
@@ -840,7 +933,7 @@ async function boot(): Promise<void> {
       return;
     }
     setGestureData(map, geometry);
-    gestureId = session.draw(geometry, NOW);
+    gestureId = session.draw(geometry, now);
     openGesturePanel();
   });
 

@@ -5,8 +5,14 @@ One full-screen map. The farm, its history, its people — nothing else.
 ## Run it
 
 ```sh
-bun run app        # builds and serves at http://localhost:4790
+bun run app        # the demo farm on this device, at http://localhost:4790
+bun run server     # the live farm: served beside the server (see apps/server/README.md)
 ```
+
+The shell opens whichever world it is served with: beside a server, the
+live shared farm and the server's engine; alone, the demo farm seeded on
+this device and the built-in rules. It says which, once, at the bottom of
+the map.
 
 ## What this is
 
@@ -33,6 +39,8 @@ are the real implementations — the shell adds pixels, not semantics.
 | Who can see this? · Let someone see the farm · Stop sharing | RFC-0002 §4 — sharing is authoring a Grant; revocation is supersession (M6) |
 | This season on the farm (in the farm line's story) | RFC-0006 §6 — a lens presentation in the panel, not a page |
 | Notes kept on the device until sent; the world remembered across reloads | RFC-0014 §1 Pending durability (M7); RFC-0013 §2 store port behind a Web Storage adapter |
+| Weather and Satellite layers; a pass shows its preview and cloud cover | RFC-0011 live sources (NWS, Open-Meteo, Earth Search) as engaged participants; pixels are payload (RFC-0003 §3.1) |
+| Answers from a model, cited and gated | RFC-0010 §0 — the engine is mechanism; the shape gate is not (P-52) |
 
 The in-browser world uses the same `Boundary` contract a remote server will
 (RFC-0012): swapping in the PostgreSQL-backed journal changes no shell code.
