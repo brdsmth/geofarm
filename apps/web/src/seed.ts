@@ -17,12 +17,48 @@ import { LocalStore } from "./store-local.ts";
 import { WeatherFeed } from "../../../packages/feeds/weather/index.ts";
 
 /** Identities are cheap and opaque (RFC-0004 §6); the demo's are stable
- * across reloads so a remembered View and an unsent outbox still point at
- * the same farm tomorrow. */
+ * across reloads — and across worlds: the same farm seeded into a browser
+ * or into a server's journal has the same people in it, so a remembered
+ * View and an unsent outbox still point at the same farm tomorrow. */
 let seq = 0;
 const newId = (): Id => `miller:${String(++seq).padStart(3, "0")}`;
 
+/** The cast (RFC-0016 §1), by stable identity. */
+export const CAST = {
+  org: "miller:001",
+  you: "miller:002",
+  maria: "miller:003",
+  sam: "miller:004",
+  assistant: "miller:005",
+} as const;
+
+/** The engaged external sources (RFC-0011 §1): each an Actor holding a
+ * representation grant over the classifications it may author. */
+export const FEED_ACTORS = {
+  weather: "miller:nws",
+  archive: "miller:open-meteo",
+  imagery: "miller:earth-search",
+} as const;
+
+/** What the weather sources' records are called — border configuration
+ * (RFC-0011 §2 Amendment 1), chosen so a station's reading and the
+ * assistant's "reading" (an answer) never share a name. */
+export const WEATHER_NAMES = { site: "weather-station", measurement: "weather-reading", estimate: "weather-estimate" };
+export const WEATHER_CLASSIFICATIONS = [WEATHER_NAMES.site, WEATHER_NAMES.measurement, "forecast", WEATHER_NAMES.estimate];
+
 export const NOW = "2026-07-01T12:00:00Z";
+
+/** The farm line, traced from the imagery (see `seedFarm`); exported so
+ * the feeds know what region the farm engaged them for. */
+export const FARM_RING: Coordinate[] = [
+  [-93.1978, 41.52245],
+  [-93.1882, 41.52245],
+  [-93.1879, 41.5195],
+  [-93.1877, 41.514],
+  [-93.1878, 41.5082],
+  [-93.1978, 41.5082],
+];
+export const FARM_CENTER: Coordinate = [-93.1927, 41.5153];
 
 /** The agronomic predicate (RFC-0016 C2): what an agronomist's engagement
  * covers — the people, the places, and everything grown or observed;
@@ -47,6 +83,8 @@ export const AGRONOMY = [
   "anomaly",
   "soil-site",
   "soil-sample",
+  ...WEATHER_CLASSIFICATIONS,
+  "imagery",
 ];
 
 function ring(pts: Coordinate[]): Coordinate[][] {
@@ -61,12 +99,13 @@ export type SeededWorld = {
   /** The AI Actor (RFC-0010 §1): scoped, attributed, a participant. */
   assistant: Id;
   org: Id;
+  feeds: typeof FEED_ACTORS;
   /** Forget the browser's copy of the world and reseed on next load. */
   reset: () => void;
 };
 
+/** The browser's world: seeded once, restored from the device thereafter. */
 export async function seedWorld(storage: Storage): Promise<SeededWorld> {
-  seq = 0; // one numbering per world, so restore and seed agree
   const store = new LocalStore("geofarm-world-1", storage);
   let seeding = true;
   let tick = 0;
@@ -75,20 +114,33 @@ export async function seedWorld(storage: Storage): Promise<SeededWorld> {
       ? new Date(Date.parse("2026-06-01T00:00:00Z") + ++tick * 1000).toISOString()
       : new Date().toISOString(),
   );
-
-  const org = newId();
-  const you = newId();
-  const maria = newId();
-  const sam = newId();
-  const assistant = newId();
-  const reset = (): void => store.forget();
+  const world: SeededWorld = {
+    journal,
+    boundary: new Boundary(journal),
+    people: [CAST.you, CAST.sam, CAST.maria],
+    assistant: CAST.assistant,
+    org: CAST.org,
+    feeds: FEED_ACTORS,
+    reset: () => store.forget(),
+  };
 
   // A world already on this device: replay it as ordinary history — same
   // records, same order, same knowledge times — and seed nothing.
   if (await store.restore()) {
     seeding = false;
-    return { journal, boundary: new Boundary(journal), people: [you, sam, maria], assistant, org, reset };
+    return world;
   }
+  await seedFarm(journal);
+  seeding = false;
+  await store.persist();
+  return world;
+}
+
+/** Miller Farm, admitted into any journal: the cast, their grants, the
+ * places, three seasons of work, and the engaged sources. */
+export async function seedFarm(journal: Journal): Promise<void> {
+  seq = Object.keys(CAST).length; // the cast is numbered first; the rest follow
+  const { org, you, maria, sam, assistant } = CAST;
 
   // Introductions land farm-owned (RFC-0002 §4.4) so every member's
   // Reading can put a name to a signature — a record whose author has no
@@ -169,6 +221,11 @@ export async function seedWorld(storage: Storage): Promise<SeededWorld> {
           "diagnosis",
           "reading",
           "anomaly",
+          "advisory",
+          "soil-site",
+          "soil-sample",
+          ...WEATHER_CLASSIFICATIONS,
+          "imagery",
         ],
       },
       capabilities: ["represent"],
@@ -197,17 +254,7 @@ export async function seedWorld(storage: Storage): Promise<SeededWorld> {
   // sides, the field edge at 41.5185, the treed creek running northeast,
   // and the notch around the neighbor's acreage and pond. The first pixel
   // a farmer studies must agree with the ground under it.
-  const farm = entity("farm", "Miller Farm", {
-    form: "area",
-    rings: ring([
-      [-93.1978, 41.52245],
-      [-93.1882, 41.52245],
-      [-93.1879, 41.5195],
-      [-93.1877, 41.514],
-      [-93.1878, 41.5082],
-      [-93.1978, 41.5082],
-    ]),
-  });
+  const farm = entity("farm", "Miller Farm", { form: "area", rings: ring(FARM_RING) });
   const north80 = entity("field", "North 80", {
     form: "area",
     rings: ring([
@@ -408,7 +455,25 @@ export async function seedWorld(storage: Storage): Promise<SeededWorld> {
     ]);
   }
 
-  seeding = false;
-  await store.persist();
-  return { journal, boundary, people: [you, sam, maria], assistant, org, reset };
+  // The live sources (RFC-0011 §1: connecting is granting): the weather
+  // service, the weather archive, and the imagery catalog, each engaged
+  // over the classifications it may author. Their content arrives later,
+  // through the door, as anyone's would.
+  const engaged: [Id, string, string[]][] = [
+    [FEED_ACTORS.weather, "National Weather Service", WEATHER_CLASSIFICATIONS],
+    [FEED_ACTORS.archive, "Open-Meteo weather archive", WEATHER_CLASSIFICATIONS],
+    [FEED_ACTORS.imagery, "Earth Search (Sentinel-2)", ["imagery"]],
+  ];
+  for (const [id, name, classifications] of engaged) {
+    await journal.admit(actor(id, "service", name));
+    await journal.admit({
+      id: newId(),
+      kind: "event",
+      classification: "grant",
+      actors: { actor: org, onBehalfOf: [] },
+      occurrence: { start: "2026-01-01T00:00:00Z" },
+      subjects: [org],
+      body: { grantee: id, scope: { classifications }, capabilities: ["represent"] },
+    });
+  }
 }
