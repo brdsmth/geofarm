@@ -61,4 +61,4 @@ chore(repo): add AGENTS.md with commit conventions
 
 - Commit once a coherent unit of work is complete and the repository is in a consistent state.
 - One logical change per commit — don't bundle unrelated changes.
-- Only commit or push when the user has asked you to. If you're on the default branch, create a branch first.
+- Only commit or push when the user has asked you to. Committing directly on `prod` (the default branch) is fine — no feature branch is needed unless the user asks for one.
