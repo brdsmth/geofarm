@@ -103,10 +103,16 @@ export class Session {
     return this.trail.current;
   }
 
-  /** Advance knowledge: walk the boundary into the Reading (RFC-0012 §4). */
+  /** Advance knowledge: walk the boundary into the Reading (RFC-0012 §4),
+   * page after page until the door has nothing newer — a season's worth
+   * of readings is many pages, and knowledge is complete-as-of only when
+   * the walk has ended (§3). */
   async sync(): Promise<void> {
-    const page = await this.boundary.walk(this.actor, this.reading.watermark);
-    this.reading.ingest(page);
+    for (;;) {
+      const page = await this.boundary.walk(this.actor, this.reading.watermark);
+      this.reading.ingest(page);
+      if (page.records.length === 0) break;
+    }
   }
 
   /** When the Reading was last true: the watermark in plain time
