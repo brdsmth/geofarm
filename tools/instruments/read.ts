@@ -14,6 +14,7 @@ import { AskEngagement, viewerStores } from "../../packages/agent/index.ts";
 import { RuleReasoner } from "../../packages/agent/reasoner.ts";
 import { bitemporalDivergence, grantShape, promotionRate, structural } from "./index.ts";
 import { readMembrane } from "./membrane.ts";
+import { readGrower, violationsOf } from "./grower.ts";
 
 const root = join(import.meta.dir, "..", "..");
 
@@ -66,6 +67,7 @@ for (const viewer of [you, maria]) {
 
 const s = structural(sources());
 const membrane = readMembrane(root);
+const grower = readGrower(root);
 const divergence = bitemporalDivergence(all);
 const shape = grantShape(all);
 const promotion = promotionRate(engagements, all, [world.assistant]);
@@ -90,6 +92,16 @@ const out = {
     locationLeaks: membrane.location.length,
     namedDeviations: membrane.exemptions,
     filesScanned: membrane.filesScanned,
+  },
+  // S11 (docs/GROWER-RULES.md): states without words, and the rest a
+  // grep can hold. Target zero; named deviations counted, not hidden.
+  S11_growerRules: {
+    violations: violationsOf(grower),
+    copy: { strings: grower.copy.keys, orphans: grower.copy.orphans.length, pending: grower.copy.pending },
+    style: { tokens: grower.style.tokens, violations: grower.style.violations.length },
+    attempt: { calls: grower.attempt.calls, bare: grower.attempt.bare.length, exemptions: grower.attempt.exemptions },
+    legend: { colours: grower.legend.keys, unnamed: grower.legend.unnamed.length },
+    filesScanned: grower.filesScanned,
   },
 };
 console.log(JSON.stringify(out, null, 2));

@@ -57,6 +57,18 @@ fix(timeline): preserve events when a boundary is redrawn
 chore(repo): add AGENTS.md with commit conventions
 ```
 
+## Before touching `apps/web` or `packages/client`
+
+Anything a grower sees answers to [the Grower Rules](docs/GROWER-RULES.md). The short form:
+
+- Every word a person reads lives in `packages/client/surface` (`bun run lint:vocab`).
+- Every wait, failure, and empty has a sentence, and every network call goes through `attempt()` in `apps/web/src/main.ts` (`bun run lint:grower`).
+- Nothing under 12px, no raw colours outside the `:root` tokens, 44px targets on touch.
+- Every colour on the map has a legend entry; sources are listed as sources, never as people.
+- Render at 390, 1024, and 1440 before committing and mention it in the body.
+
+Deviations are marked in place with a reason (`copy-pending:`, `attempt-exempt:`, `style-exempt:`) and counted by the lint; an unmarked one fails `bun run check`.
+
 ## When to commit
 
 - Commit once a coherent unit of work is complete and the repository is in a consistent state.
