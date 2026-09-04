@@ -29,8 +29,9 @@ export const LENS_STYLE: Record<string, { color: string; fill: boolean }> = {
 };
 
 /** What is growing, as colour: projected state made visible
- * (REVIEW-003 §3 — "state of my farm", not "map of my farm"). */
-const CROP_COLOR: Record<string, string> = {
+ * (REVIEW-003 §3 — "state of my farm", not "map of my farm"). Every key
+ * here has a word in the surface legend (Grower Rule 5; lint:grower). */
+export const CROP_COLOR: Record<string, string> = {
   corn: "#f2c14e",
   soybeans: "#7ddf64",
   wheat: "#e8d59a",
@@ -38,8 +39,9 @@ const CROP_COLOR: Record<string, string> = {
 };
 
 /** A small, meaningful colour system for marks (REVIEW-003 §4.3):
- * operations, observations, claims, paperwork — never one hue for all. */
-const GROUP_COLOR: Record<string, string> = {
+ * operations, observations, claims, paperwork — never one hue for all.
+ * Every key here has a word in the surface legend (Grower Rule 5). */
+export const GROUP_COLOR: Record<string, string> = {
   operation: "#f2a65a",
   observation: "#5bc8f5",
   claim: "#c792ea",

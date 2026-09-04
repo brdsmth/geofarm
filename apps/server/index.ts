@@ -118,8 +118,15 @@ Bun.serve({
     const answered = await door(req);
     if (answered !== undefined) return answered;
     const file = Bun.file(join(dist, path === "/" ? "index.html" : path.slice(1)));
-    if (await file.exists()) return new Response(file);
-    return new Response("not found", { status: 404 });
+    if (!(await file.exists())) return new Response("not found", { status: 404 });
+    if (path === "/" || path === "/index.html") {
+      // A shell served beside a server knows it (Grower Rule 3): when the
+      // door cannot be reached it says so, and never seeds the demo farm
+      // in place of this one.
+      const html = (await file.text()).replace("<head>", '<head><meta name="geofarm-served" content="true">');
+      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
+    return new Response(file);
   },
 });
 

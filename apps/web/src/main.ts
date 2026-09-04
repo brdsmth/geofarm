@@ -3,7 +3,8 @@
  * No router, no pages: destinations = 1 (S1). Everything below wires
  * gestures to Session verbs and paints marks; nothing below holds state
  * of its own beyond the three stores (RFC-0014, S2). Every word a person
- * reads comes from the surface package (RFC-0000 §2.6, Amendment 2).
+ * reads comes from the surface package (RFC-0000 §2.6, Amendment 2), and
+ * every wait and failure has one (docs/GROWER-RULES.md, Rule 3).
  */
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -13,10 +14,13 @@ import {
   assistant as assistantCopy,
   claims,
   crops,
+  freshness,
   kinds,
+  legend,
   map as mapCopy,
   sharing,
   shell,
+  sources as sourcesCopy,
   story,
   work,
 } from "../../../packages/client/surface/index.ts";
@@ -31,10 +35,13 @@ import { RuleReasoner } from "../../../packages/agent/reasoner.ts";
 import { RemoteReasoner } from "../../../packages/agent/remote.ts";
 import type { Reasoner } from "../../../packages/agent/index.ts";
 import { RemoteBoundary } from "../../../packages/boundary/remote.ts";
-import { Session, type BoundaryPort } from "../../../packages/client/interaction/index.ts";
+import { Session, type BoundaryPort, type SendReport } from "../../../packages/client/interaction/index.ts";
 import { PendingStore, StoragePersistence } from "../../../packages/client/stores/index.ts";
-import { AGRONOMY, NOW, WEATHER_CLASSIFICATIONS, seedWorld } from "./seed.ts";
+import { AGRONOMY, FEED_ACTORS, NOW, WEATHER_CLASSIFICATIONS, seedWorld } from "./seed.ts";
 import {
+  CROP_COLOR,
+  GROUP_COLOR,
+  LENS_STYLE,
   boundsOf,
   createMap,
   pickableLayerIds,
@@ -75,6 +82,14 @@ const LENSES = [
   { name: "office", filter: { classifications: ["invoice", "lien"] } },
 ];
 
+/** The lenses a grower may switch (Grower Rule 2): the farm's own
+ * fields, line, places, and work are never something to turn off, so
+ * they are not switches. Each optional lens names the legend family
+ * its marks belong to. */
+const OPTIONAL: Record<string, string> = { soil: "soil", weather: "weather", imagery: "imagery", office: "paper" };
+/** The mark families that are always on the map, in legend order. */
+const ALWAYS_GROUPS = ["operation", "observation", "claim", "place"];
+
 /** Colour families for marks: what kind of thing a dot is. */
 const GROUP: Record<string, string> = {
   planting: "operation",
@@ -110,6 +125,10 @@ let MONTHS = monthsUntil(NOW);
 /** "Now" for this shell: the seeded season's, or the live world's. */
 let now = NOW;
 const SEASON_END = "2026-11-01";
+/** What this device remembers of the last good sync, for the notice
+ * that says how old the screen is when the farm cannot be reached. */
+const KNOWN_KEY = "geofarm-known-as-of";
+const RETRY_MS = 15_000;
 
 function monthToIso(idx: number): string {
   const d = new Date(MONTH0);
@@ -132,6 +151,16 @@ function fmtDate(iso: string): string {
   });
 }
 
+/** A moment, as a person would say it: the time if today, else the day. */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : `${fmtDate(iso)} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const text = (r: AdmittedRecord | undefined): string => {
   const body = r?.body as { text?: string; name?: string; channel?: string; value?: number } | undefined;
@@ -143,11 +172,77 @@ const text = (r: AdmittedRecord | undefined): string => {
   return kinds[r?.classification ?? ""] ?? "";
 };
 
+const remembered = (): string | undefined => {
+  try {
+    return localStorage.getItem(KNOWN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+const rememberKnown = (iso: string | undefined): void => {
+  if (iso === undefined) return;
+  try {
+    localStorage.setItem(KNOWN_KEY, iso);
+  } catch {
+    // a browser that will not remember still shows the farm
+  }
+};
+
+/** The one place the shell says what it cannot do (Grower Rule 3). */
+const notice = (words: string | undefined): void => {
+  const box = el<HTMLElement>("notice");
+  box.textContent = words ?? "";
+  box.hidden = words === undefined;
+};
+
+/**
+ * Every wait and every failure has words (Grower Rule 3): the one helper
+ * through which the shell speaks to the door and the engine. It says
+ * "waiting" where the person is looking, disables the control they
+ * pressed, and on a thrown fetch says "couldn't" in the same place. The
+ * S11 lint holds every network verb inside this call.
+ */
+const attempt = async <T>(
+  status: HTMLElement | undefined,
+  control: HTMLButtonElement | undefined,
+  words: { waiting: string; failed: string },
+  run: () => Promise<T>,
+): Promise<T | undefined> => {
+  if (status !== undefined) {
+    status.textContent = words.waiting;
+    status.classList.remove("failed");
+    status.hidden = false;
+  }
+  if (control !== undefined) control.disabled = true;
+  try {
+    return await run();
+  } catch {
+    if (status !== undefined) {
+      status.textContent = words.failed;
+      status.classList.add("failed");
+      status.hidden = false;
+    }
+    return undefined;
+  } finally {
+    if (control !== undefined) control.disabled = false;
+  }
+};
+
+/** The door's reasons in the farm's words (work.reasons); never the
+ * door's own, which cite RFCs. */
+const because = (report: SendReport): string => {
+  const raw = report.rejected[0]?.reasons[0] ?? "";
+  const known = work.reasons.find(([prefix]) => raw.includes(prefix));
+  return work.because(known?.[1] ?? work.reasonUnknown);
+};
+
 /** What a shell needs of a world, wherever it is. */
 type World = {
   org: Id;
   people: Id[];
   assistant: Id;
+  /** The engaged sources (RFC-0011): listed as sources, never as people. */
+  feeds: Id[];
   boundary: BoundaryPort;
   reasoner: Reasoner;
   /** Served beside a server (shared, live) or seeded on this device. */
@@ -156,35 +251,55 @@ type World = {
   reset: () => void;
 };
 
-type Served = { org: Id; people: Id[]; assistant: Id; now: string; engine: string };
+type Served = {
+  org: Id;
+  people: Id[];
+  assistant: Id;
+  feeds?: Record<string, Id>;
+  now: string;
+  engine: string;
+};
+
+/** A shell that was served beside a server says so in its head; one
+ * served alone (bun run app) is the demo on this device. */
+const served = (): boolean => document.querySelector('meta[name="geofarm-served"]') !== null;
 
 /**
  * One door, two worlds (RFC-0012 §0 — transport is mechanism). Served
  * beside a server, the shell speaks to its door and its engine; served
- * alone, it seeds the demo farm on this device and reasons by rule.
+ * alone, it seeds the demo farm on this device and reasons by rule. A
+ * served shell that cannot reach its door is exactly that — unreachable —
+ * and is said so (Grower Rule 3); it never swaps in the demo farm.
  */
-async function openWorld(): Promise<World> {
-  const served = await fetch("/api/world")
-    .then((r) => (r.ok ? (r.json() as Promise<Served>) : undefined))
-    .catch(() => undefined);
-  if (served !== undefined) {
-    now = served.now;
+async function openWorld(): Promise<World | undefined> {
+  let world: Served | undefined;
+  try {
+    const res = await fetch("/api/world"); // attempt-exempt: boot — an unreachable farm is said by the notice, never swapped for the demo
+    if (res.ok) world = (await res.json()) as Served;
+  } catch {
+    world = undefined;
+  }
+  if (world !== undefined) {
+    now = world.now;
     return {
-      org: served.org,
-      people: served.people,
-      assistant: served.assistant,
+      org: world.org,
+      people: world.people,
+      assistant: world.assistant,
+      feeds: Object.values(world.feeds ?? {}),
       boundary: new RemoteBoundary("/api"),
       reasoner: new RemoteReasoner("/api/engine"),
       live: true,
-      engine: served.engine,
+      engine: world.engine,
       reset: () => {},
     };
   }
+  if (served()) return undefined;
   const seeded = await seedWorld(localStorage);
   return {
     org: seeded.org,
     people: seeded.people,
     assistant: seeded.assistant,
+    feeds: Object.values(FEED_ACTORS),
     boundary: seeded.boundary,
     reasoner: new RuleReasoner(),
     live: false,
@@ -193,34 +308,89 @@ async function openWorld(): Promise<World> {
   };
 }
 
-async function boot(): Promise<void> {
-  const world = await openWorld();
-  MONTHS = monthsUntil(now);
+/** The served farm cannot be reached: say it, say how old the device's
+ * memory is, and try again quietly until the door answers. */
+function unreachable(): void {
+  const known = remembered();
+  el("farm-name").textContent = shell.brand;
+  el("farm-status").textContent = "";
+  // No farm, no controls over it: the notice is the whole screen's truth.
+  for (const id of ["timeline", "hint", "draw-ask", "shown"]) el(id).hidden = true;
+  notice(known === undefined ? freshness.cantReach : freshness.cantReachSince(fmtWhen(known)));
+  const retry = window.setInterval(() => {
+    void fetch("/api/world") // attempt-exempt: the notice above is this loop's failure state; success reloads the farm
+      .then((r) => {
+        if (r.ok) {
+          window.clearInterval(retry);
+          location.reload();
+        }
+      })
+      .catch(() => {});
+  }, RETRY_MS);
+}
 
+async function boot(): Promise<void> {
   // ------------------------------------------------------------ chrome copy
-  el("brand-name").textContent = shell.brand;
+  // Said before anything is fetched, so a slow door is never a blank chip.
+  el("farm-name").textContent = shell.brand;
+  el("farm-status").textContent = freshness.opening;
   el("viewer-caption").textContent = shell.lookingAs;
   el<HTMLInputElement>("search-input").placeholder = shell.findPlace;
   el("hint").textContent = shell.tapHint;
   el("panel-close").setAttribute("aria-label", shell.close);
   el("today").textContent = mapCopy.backToToday;
   el("season").setAttribute("aria-label", mapCopy.timeSlider);
-  el("layers").setAttribute("aria-label", mapCopy.layers);
+  el("shown-toggle").textContent = mapCopy.layers;
+  el("shown-list").setAttribute("aria-label", mapCopy.layers);
   el("draw-ask").textContent = mapCopy.drawToAsk;
-  // Which world, and which intelligence: said once, plainly (RFC-0000 §2.6).
-  el("status").textContent = `${world.live ? shell.liveWorld : shell.deviceWorld} · ${
-    world.engine === "rules" ? shell.answeredByRules : shell.answeredBy(world.engine)
-  }`;
+
+  const world = await openWorld();
+  if (world === undefined) {
+    unreachable();
+    return;
+  }
+  MONTHS = monthsUntil(now);
 
   // ----------------------------------------------------------- the viewer
   // One Session per viewer (RFC-0006 §1): switching who is looking swaps
   // the Reading and the outbox, never the map. Names are read from the
   // Reading — a signature resolves to a name only if the viewer may see
-  // the person (RFC-0002 §2.3).
+  // the person (RFC-0002 §2.3). Places carry their own names beside them.
   let session!: Session;
   let engagement!: AskEngagement;
   const names = new Map<Id, string>();
   const nameOf = (id: Id): string => names.get(id) ?? "";
+  const placeNameOf = (id: Id): string => nameOf(id) || text(session.reading.get(id));
+
+  // Whose farm this is (Grower Rule 1): the farm line's name, else the
+  // organization's; the product's name stays small beside it.
+  const farmName = (): string => {
+    const line = session.reading.all().find((r) => r.classification === "farm");
+    const org = session.reading.get(world.org);
+    return text(line) || text(org) || shell.brand;
+  };
+
+  // How old what is on screen is, who is answering, and what is waiting
+  // to be sent (Grower Rules 1 and 3): one chip, always readable.
+  const refreshStatus = (): void => {
+    const known = session.knownAsOf();
+    rememberKnown(known);
+    const which = world.live
+      ? known === undefined
+        ? shell.liveWorld
+        : freshness.upToDateAsOf(fmtWhen(known))
+      : shell.deviceWorld;
+    const who = world.engine === "rules" ? shell.answeredByRules : shell.answeredBy(world.engine);
+    const waiting = session.pending.submissions.length;
+    const status = el("farm-status");
+    status.textContent = `${which} · ${who}`;
+    if (waiting > 0) {
+      const span = document.createElement("span");
+      span.className = "waiting";
+      span.textContent = work.waitingToSend(waiting);
+      status.appendChild(span);
+    }
+  };
 
   const openAs = async (actor: Id): Promise<void> => {
     session = new Session(
@@ -230,9 +400,11 @@ async function boot(): Promise<void> {
       now,
     );
     // Reconnection is Append + Project (RFC-0012 §5): whatever this
-    // viewer left unsent goes first, then the walk.
-    if (session.pending.submissions.length > 0) await session.send();
-    await session.sync();
+    // viewer left unsent goes first, then the walk. Both wait with words.
+    await attempt(el("farm-status"), undefined, { waiting: freshness.opening, failed: freshness.cantReach }, async () => {
+      if (session.pending.submissions.length > 0) await session.send();
+      await session.sync();
+    });
     names.clear();
     for (const r of session.reading.all()) {
       const n = (r.body as { name?: string } | undefined)?.name;
@@ -248,19 +420,52 @@ async function boot(): Promise<void> {
       viewerStores(session),
       world.org,
     );
+    const name = el("farm-name");
+    name.textContent = farmName();
+    const product = document.createElement("small");
+    product.textContent = shell.brand;
+    name.appendChild(product);
+    refreshStatus();
   };
   await openAs(world.people[0] as Id);
 
+  // Who is looking is a development affordance on the demo farm; on a
+  // served farm, identity is the door's business (RFC-0002), not a menu.
   const viewerSelect = el<HTMLSelectElement>("viewer");
-  for (const person of world.people) {
-    const o = document.createElement("option");
-    o.value = person;
-    o.textContent = nameOf(person);
-    viewerSelect.appendChild(o);
+  if (!world.live) {
+    for (const person of world.people) {
+      const o = document.createElement("option");
+      o.value = person;
+      o.textContent = nameOf(person);
+      viewerSelect.appendChild(o);
+    }
+    el("viewer-label").hidden = false;
   }
 
-  const map = createMap(el("map"));
+  // The map engine is the one failure the shell cannot paint around: it
+  // is said in words (Grower Rule 3) instead of a dark screen.
+  let map: ReturnType<typeof createMap>;
+  try {
+    map = createMap(el("map"));
+  } catch {
+    notice(shell.noMapEngine);
+    return;
+  }
   const lensNames = LENSES.map((l) => l.name);
+
+  // Offline is a state with a sentence, not a silence (Grower Rule 3).
+  window.addEventListener("offline", () => notice(freshness.workingOffline));
+  window.addEventListener("online", () => {
+    notice(undefined);
+    if (session.pending.submissions.length === 0) return;
+    void attempt(el("farm-status"), undefined, { waiting: work.sending, failed: freshness.cantReach }, async () => {
+      await session.send();
+      await session.sync();
+    }).then(() => {
+      refreshStatus();
+      paint();
+    });
+  });
 
   // What is growing, as of the View's time: projected state (RFC-0004 §4)
   // read off the field's timeline — the last planting stands until a
@@ -348,7 +553,7 @@ async function boot(): Promise<void> {
       h.kind === "assertion" && h.confidence !== undefined
         ? ` <span class="sure">${claims.howSure(Math.round(h.confidence * 100))}</span>`
         : "";
-    const where = place !== undefined ? ` <span class="who">· ${place}</span>` : "";
+    const where = place !== undefined && place !== "" ? ` <span class="who">· ${place}</span>` : "";
     return `<div class="row"><span class="when">${fmtDate(h.occurrence.start)}</span><span class="what">${what}${sure}${where}</span><span class="who">${who}</span></div>`;
   };
 
@@ -371,14 +576,16 @@ async function boot(): Promise<void> {
       .filter((r) => Date.parse(r.occurrence.start) <= bound)
       .sort((a, b) => Date.parse(b.occurrence.start) - Date.parse(a.occurrence.start))
       .slice(0, 14)
-      .map((r) => rowHtml(r, nameOf(r.subjects[0] as Id)))
+      .map((r) => rowHtml(r, placeNameOf(r.subjects[0] as Id)))
       .join("");
     return rows.length > 0 ? `<h3>${shell.onTheFarm}</h3>${rows}` : `<p class='quiet'>${shell.nothingYet}</p>`;
   };
 
-  const storyOf = (id: Id): string => {
+  /** A thing's story: the head (name, what it is, what grows), then the
+   * rest (frame, notices, rows). The two verbs sit between them. */
+  const storyOf = (id: Id): { head: string; rest: string } => {
     const r = session.reading.get(id);
-    if (r === undefined) return "";
+    if (r === undefined) return { head: "", rest: "" };
     const name = nameOf(id) || text(r) || shell.thisPlace;
     const kindLabel = kinds[r.classification] ?? shell.place;
     const since =
@@ -386,7 +593,7 @@ async function boot(): Promise<void> {
         ? `<div class="since">${shell.hereSince(kindLabel, String(new Date(r.occurrence.start).getFullYear()))}</div>`
         : `<div class="since">${shell.whenWhat(kindLabel, fmtDate(r.occurrence.start))}</div>`;
     if (r.classification === "farm") {
-      return `<h2>${name}</h2>${since}${frameHtml()}${farmStoryOf()}${sharesHtml()}`;
+      return { head: `<h2>${name}</h2>${since}`, rest: `${frameHtml()}${farmStoryOf()}` };
     }
     const bundle = session.inspect(id);
     // Two people redrew the same line without hearing each other: both
@@ -395,14 +602,14 @@ async function boot(): Promise<void> {
       (bundle?.contenders.length ?? 0) > 1 ? `<div class="notice">${shell.twoLinesHere}</div>` : "";
     const crop = r.classification === "field" ? cropOf(id) : "";
     const growing =
-      crop !== "" ? `<div class="since growing">${shell.growing(crops[crop] ?? crop)}</div>` : "";
+      crop === "" ? "" : `<div class="since growing">${crop === "fallow" ? shell.fallow : shell.growing(crops[crop] ?? crop)}</div>`;
     // A satellite pass shows its preview: the pixels are payload, shown
     // as what they are (RFC-0003 §3.1), with the provider's own facts.
     const scene = r.classification === "imagery" ? sceneHtml(r) : "";
     const rows = (bundle?.timeline ?? []).slice().reverse().map((h) => rowHtml(h)).join("");
     const rowsOrQuiet =
       rows.length > 0 ? `<h3>${shell.whatsHappened}</h3>${rows}` : `<p class='quiet'>${shell.nothingYet}</p>`;
-    return `<h2>${name}</h2>${since}${growing}${scene}${frameHtml()}${fork}${rowsOrQuiet}`;
+    return { head: `<h2>${name}</h2>${since}${growing}`, rest: `${scene}${frameHtml()}${fork}${rowsOrQuiet}` };
   };
 
   const sceneHtml = (r: AdmittedRecord): string => {
@@ -420,29 +627,42 @@ async function boot(): Promise<void> {
   // --------------------------------------------- sharing (M6 at the surface)
   // "Who can see this?" is a reading of grant history; sharing is one
   // decision — who, what kind of thing, until when — authored as a Grant
-  // (RFC-0002 §4). Nothing here is a permissions screen.
+  // (RFC-0002 §4). Nothing here is a permissions screen. The engaged
+  // sources hold grants too (RFC-0011) and are listed apart, as sources
+  // (Grower Rule 8): a feed is not a person the farm shares with.
+  const feeds = new Set<Id>(world.feeds);
   const scopeLabel = (scope: { classifications?: string[]; region?: unknown }): string => {
     if (scope.region !== undefined) return sharing.insideTheLine;
     if (scope.classifications === undefined) return sharing.scopeShort.everything as string;
     const agronomic = AGRONOMY.every((c) => scope.classifications?.includes(c));
     return (agronomic ? sharing.scopeShort.agronomy : sharing.scopeShort.some) as string;
   };
+  const lastReportOf = (actor: Id): string | undefined => {
+    let latest: string | undefined;
+    for (const r of session.reading.all()) {
+      if (r.actors.actor !== actor || r.kind === "actor" || r.classification === "grant") continue;
+      if (latest === undefined || r.knowledgeTime > latest) latest = r.knowledgeTime;
+    }
+    return latest;
+  };
   const sharesHtml = (gestureId?: string): string => {
-    const shares = session.shares();
-    const rows = shares
+    const all = session.shares();
+    const people = all.filter((s) => !feeds.has(s.grant.grantee));
+    const engaged = all.filter((s) => feeds.has(s.grant.grantee));
+    const rows = people
       .map(
         (s) =>
           `<div class="row"><span class="what">${nameOf(s.grant.grantee) || kinds.grant} ${sharing.sees(scopeLabel(s.grant.scope))}${
             s.grant.until !== undefined ? ` ${sharing.until(fmtDate(s.grant.until))}` : ""
-          }</span><span class="who">${sharing.sharedBy(nameOf(s.record.actors.actor))}</span><button class="stop" data-id="${s.record.id}">${sharing.stopSharing(nameOf(s.grant.grantee))}</button></div>`,
+          }</span><span class="who">${sharing.sharedBy(nameOf(s.record.actors.actor))}</span><button class="stop" data-id="${s.record.id}" aria-label="${sharing.stopSharing(nameOf(s.grant.grantee))}">${sharing.stop}</button></div>`,
       )
       .join("");
-    const others = world.people.filter((p) => p !== session.actor && !shares.some((s) => s.grant.grantee === p));
+    const others = world.people.filter((p) => p !== session.actor && !people.some((s) => s.grant.grantee === p));
     const options = others.map((p) => `<option value="${p}">${nameOf(p) || p}</option>`).join("");
-    return `<div class="shares"><h3>${sharing.whoCanSee}</h3>${
-      rows || `<p class="quiet">${sharing.onlyTheFarm}</p>`
-    }${rows}
-      <div class="compose"><button id="share-open">${sharing.letSomeoneSee}</button>
+    const compose =
+      others.length === 0
+        ? `<p class="quiet">${sharing.everyoneSees}</p>`
+        : `<div class="compose"><button id="share-open">${sharing.letSomeoneSee}</button>
       <form id="share-form" class="share-form" hidden data-gesture="${gestureId ?? ""}">
         <label>${sharing.whoLabel}<select id="share-who">${options}</select></label>
         <label>${sharing.whatLabel}<select id="share-what">
@@ -454,61 +674,78 @@ async function boot(): Promise<void> {
           <button type="submit" id="share-save">${sharing.share}</button>
           <button type="button" id="share-cancel">${story.neverMind}</button>
         </div>
-        <p id="share-status" class="quiet" hidden></p>
-      </form></div></div>`;
+      </form></div>`;
+    const sourceRows = engaged
+      .map((s) => {
+        const name = nameOf(s.grant.grantee) || kinds.grant || shell.place;
+        const last = lastReportOf(s.grant.grantee);
+        const when = last === undefined ? sourcesCopy.neverReported(name) : freshness.lastHeardFrom(name, fmtDate(last));
+        return `<div class="row"><span class="what">${when}</span><span class="consequence">${sourcesCopy.willStop(name)}</span><button class="stop" data-id="${s.record.id}" aria-label="${sourcesCopy.stopUsing} ${name}">${sourcesCopy.stopUsing}</button></div>`;
+      })
+      .join("");
+    const sourcesBlock = sourceRows === "" ? "" : `<div class="sources"><h3>${sourcesCopy.heading}</h3>${sourceRows}</div>`;
+    return `<div class="shares"><h3>${sharing.whoCanSee}</h3>${
+      rows || `<p class="quiet">${sharing.onlyTheFarm}</p>`
+    }${compose}<p id="share-status" class="status" hidden></p></div>${sourcesBlock}`;
   };
 
   const wireShares = (rerender: () => void): void => {
     const openBtn = document.getElementById("share-open") as HTMLButtonElement | null;
     const form = document.getElementById("share-form") as HTMLFormElement | null;
-    if (openBtn === null || form === null) return;
-    openBtn.addEventListener("click", () => {
-      openBtn.hidden = true;
-      form.hidden = false;
-    });
-    el("share-cancel").addEventListener("click", () => {
-      form.hidden = true;
-      openBtn.hidden = false;
-    });
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const who = el<HTMLSelectElement>("share-who").value as Id;
-      const what = el<HTMLSelectElement>("share-what").value;
-      const until = el<HTMLInputElement>("share-until").value;
-      const gestureId = form.dataset.gesture || undefined;
-      if (who === "") return;
-      const draft = session.share({
-        grantee: who,
-        scope: what === "agronomy" ? { classifications: AGRONOMY } : {},
-        capabilities: ["represent"],
-        ...(until !== "" ? { until: new Date(until).toISOString() } : {}),
-        ...(gestureId !== undefined ? { gestureId } : {}),
-        at: now,
+    const status = document.getElementById("share-status") as HTMLElement | null;
+    if (openBtn !== null && form !== null) {
+      openBtn.addEventListener("click", () => {
+        openBtn.hidden = true;
+        form.hidden = false;
       });
-      session.commit(draft);
-      void session.send().then(async (result) => {
-        const status = el<HTMLElement>("share-status");
-        if (result.rejected.length > 0) {
-          status.textContent = sharing.couldNotShare;
-          status.hidden = false;
-          return;
-        }
-        await session.sync();
-        rerender();
+      el("share-cancel").addEventListener("click", () => {
+        form.hidden = true;
+        openBtn.hidden = false;
       });
-    });
-    for (const b of panelBody.querySelectorAll<HTMLButtonElement>("button.stop")) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const who = el<HTMLSelectElement>("share-who").value as Id;
+        const what = el<HTMLSelectElement>("share-what").value;
+        const until = el<HTMLInputElement>("share-until").value;
+        const gestureId = form.dataset.gesture || undefined;
+        if (who === "") return;
+        const draft = session.share({
+          grantee: who,
+          scope: what === "agronomy" ? { classifications: AGRONOMY } : {},
+          capabilities: ["represent"],
+          ...(until !== "" ? { until: new Date(until).toISOString() } : {}),
+          ...(gestureId !== undefined ? { gestureId } : {}),
+          at: now,
+        });
+        session.commit(draft);
+        void attempt(status ?? undefined, el<HTMLButtonElement>("share-save"), { waiting: sharing.sharing, failed: sharing.couldNotShare }, async () => {
+          const result = await session.send();
+          if (result.rejected.length > 0) throw new Error(because(result));
+          await session.sync();
+          return result;
+        }).then((result) => {
+          refreshStatus();
+          if (result === undefined) return;
+          if (status !== null) status.textContent = sharing.shared;
+          rerender();
+        });
+      });
+    }
+    for (const b of panelBody.querySelectorAll<HTMLButtonElement>(".shares .stop, .sources .stop")) {
       b.addEventListener("click", () => {
         const draft = session.revoke(b.dataset.id as Id, now);
         if (draft === undefined) return;
         session.commit(draft);
-        b.disabled = true;
-        void session.send().then(async (result) => {
-          if (result.rejected.length > 0) {
-            b.textContent = sharing.couldNotShare;
-            return;
-          }
+        const failed = sharing.couldNotShare;
+        void attempt(status ?? undefined, b, { waiting: sharing.stopping, failed }, async () => {
+          const result = await session.send();
+          if (result.rejected.length > 0) throw new Error(because(result));
           await session.sync();
+          return result;
+        }).then((result) => {
+          refreshStatus();
+          if (result === undefined) return;
+          if (status !== null) status.textContent = sharing.stopped;
           rerender();
         });
       });
@@ -517,26 +754,30 @@ async function boot(): Promise<void> {
 
   // ------------------------------------------- the author's door (P0 #2)
   const composeHtml = `<div class="compose">
-      <button id="add-note">${story.addNote}</button>
       <form id="compose-form" hidden>
         <textarea id="note-text" rows="3" placeholder="${story.notePlaceholder}"></textarea>
         <div class="compose-actions">
           <button type="submit" id="note-save">${story.keepNote}</button>
           <button type="button" id="note-cancel">${story.neverMind}</button>
         </div>
-        <p id="compose-status" class="quiet" hidden></p>
+        <p id="compose-status" class="status" hidden></p>
       </form>
     </div>`;
 
   // --------------------------------------------------- the Ask verb (M5)
   const askHtml = `<div class="ask">
-      <button id="ask-open">${assistantCopy.askAbout}</button>
       <form id="ask-form" hidden>
         <input id="ask-text" type="text" placeholder="${assistantCopy.askPlaceholder}" autocomplete="off" />
         <button type="submit" id="ask-send">${assistantCopy.ask}</button>
       </form>
+      <p id="ask-status" class="status" hidden></p>
       <div id="ask-replies"></div>
     </div>`;
+
+  /** The two verbs a person came for (Grower Rule 2): under the name,
+   * before the story, on every thing. */
+  const actsHtml = (askLabel: string): string =>
+    `<div class="acts"><button id="ask-open">${askLabel}</button><button id="add-note">${story.addNote}</button></div>`;
 
   const peelRows = (nodes: PeelNode[], depth = 0): string =>
     nodes
@@ -580,14 +821,17 @@ async function boot(): Promise<void> {
       b.addEventListener("click", () => {
         const claim = kept[Number(b.dataset.i)];
         if (claim === undefined) return;
-        b.disabled = true;
-        void engagement.promote(claim).then(async (result) => {
-          if (!result.accepted) {
-            b.textContent = work.couldNotSend;
-            return;
-          }
+        const status = el<HTMLElement>("ask-status");
+        void attempt(status, b, { waiting: assistantCopy.keeping, failed: work.couldNotSend }, async () => {
+          const result = await engagement.promote(claim);
+          if (!result.accepted) throw new Error(result.reasons.join());
           await session.sync();
+          return result;
+        }).then((result) => {
+          if (result === undefined) return;
+          status.hidden = true;
           paint();
+          b.disabled = true;
           b.textContent = assistantCopy.keptAnswer;
         });
       });
@@ -601,11 +845,9 @@ async function boot(): Promise<void> {
           if (record === undefined) continue;
           const lens = LENSES.find((l) => l.filter.classifications.includes(record.classification));
           const state = session.view.lenses.find((l) => l.name === lens?.name);
-          if (lens !== undefined && state?.visible === false) {
-            session.toggle(lens.name);
-            lensButtons.get(lens.name)?.classList.add("on");
-          }
+          if (lens !== undefined && state?.visible === false) session.toggle(lens.name);
         }
+        syncSwitches();
         paint();
         b.disabled = true;
       });
@@ -616,8 +858,8 @@ async function boot(): Promise<void> {
     const openBtn = el<HTMLButtonElement>("ask-open");
     const form = el<HTMLFormElement>("ask-form");
     const input = el<HTMLInputElement>("ask-text");
+    const status = el<HTMLElement>("ask-status");
     openBtn.addEventListener("click", () => {
-      openBtn.hidden = true;
       form.hidden = false;
       input.focus();
     });
@@ -626,25 +868,28 @@ async function boot(): Promise<void> {
       const q = input.value.trim();
       if (q === "") return;
       input.value = "";
-      void engagement.ask(q).then(renderReplies);
+      // An ask is a wait (Grower Rule 3): said where the answer will land.
+      void attempt(status, el<HTMLButtonElement>("ask-send"), { waiting: assistantCopy.thinking, failed: assistantCopy.couldNotAnswer }, () =>
+        engagement.ask(q),
+      ).then(async (replies) => {
+        if (replies === undefined) return;
+        status.hidden = true;
+        await renderReplies(replies);
+      });
     });
   };
 
-  const renderPanel = (id: Id): void => {
-    panelBody.innerHTML = storyOf(id) + askHtml + composeHtml;
-    wireAsk();
-    wireShares(() => renderPanel(id));
+  const wireNote = (rerender: () => void): void => {
     const addBtn = el<HTMLButtonElement>("add-note");
     const form = el<HTMLFormElement>("compose-form");
     const input = el<HTMLTextAreaElement>("note-text");
+    const status = el<HTMLElement>("compose-status");
     addBtn.addEventListener("click", () => {
-      addBtn.hidden = true;
       form.hidden = false;
       input.focus();
     });
     el("note-cancel").addEventListener("click", () => {
       form.hidden = true;
-      addBtn.hidden = false;
     });
     form.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -652,18 +897,34 @@ async function boot(): Promise<void> {
       if (body === "") return;
       const draftId = session.annotate("note", { text: body }, now);
       session.commit(draftId);
-      void session.send().then(async (result) => {
-        if (result.rejected.length > 0 || result.deferred > 0) {
-          const status = el<HTMLElement>("compose-status");
-          status.textContent = result.deferred > 0 ? work.savedHere : work.couldNotSend;
-          status.hidden = false;
+      void attempt(status, el<HTMLButtonElement>("note-save"), { waiting: work.sending, failed: work.savedHere }, async () => {
+        const result = await session.send();
+        if (result.rejected.length > 0) throw new Error(because(result));
+        if (result.deferred > 0) throw new Error(work.savedHere);
+        await session.sync();
+        return result;
+      }).then((result) => {
+        refreshStatus();
+        if (result === undefined) {
+          // The note is kept on this device (RFC-0014 §1); the door's
+          // reason, if it gave one, is said in the farm's words.
+          const last = session.pending.submissions.length > 0 ? work.savedHere : undefined;
+          if (last !== undefined) status.textContent = last;
           return;
         }
-        await session.sync();
+        status.textContent = work.sent;
         paint();
-        renderPanel(id); // the new note is part of the story now
+        rerender(); // the new note is part of the story now
       });
     });
+  };
+
+  const renderPanel = (id: Id): void => {
+    const s = storyOf(id);
+    panelBody.innerHTML = s.head + actsHtml(assistantCopy.askAbout) + askHtml + composeHtml + s.rest + sharesHtml();
+    wireAsk();
+    wireNote(() => renderPanel(id));
+    wireShares(() => renderPanel(id));
   };
 
   // Several things at one spot (RFC-0015 §4 Amendment 1): the aggregate
@@ -675,7 +936,7 @@ async function boot(): Promise<void> {
       .sort((a, b) => Date.parse(b.occurrence.start) - Date.parse(a.occurrence.start))
       .map(
         (r) =>
-          `<button data-id="${r.id}"><span class="when">${fmtDate(r.occurrence.start)}</span><span class="what">${text(r)}</span><span></span><span class="who">${nameOf(r.actors.actor)}</span></button>`,
+          `<button data-id="${r.id}"><span class="when">${fmtDate(r.occurrence.start)}</span><span class="what">${text(r)}</span><span class="who">${nameOf(r.actors.actor)}</span></button>`,
       )
       .join("");
     panelBody.innerHTML = `<h2>${shell.atThisSpot}</h2><div class="since">${shell.severalHere(ids.length)}</div><div class="stack">${rows}</div>`;
@@ -683,8 +944,7 @@ async function boot(): Promise<void> {
       b.addEventListener("click", () => openPanel(b.dataset.id as Id));
     }
     session.select(ids);
-    panel.hidden = false;
-    el("hint").hidden = true;
+    showPanel();
     paint();
   };
 
@@ -698,12 +958,16 @@ async function boot(): Promise<void> {
     }
   };
 
+  const showPanel = (): void => {
+    panel.hidden = false;
+    document.body.classList.add("panel-open");
+    el("hint").hidden = true;
+  };
   const openPanel = (id: Id): void => {
     dropGesture();
     session.select([id]);
     renderPanel(id);
-    panel.hidden = false;
-    el("hint").hidden = true;
+    showPanel();
     paint(); // attention is shared with the map (RFC-0006 §3)
     remember();
   };
@@ -714,6 +978,7 @@ async function boot(): Promise<void> {
     // was worth keeping was promoted; the rest leaves no residue.
     engagement.discard();
     panel.hidden = true;
+    document.body.classList.remove("panel-open");
     paint();
     remember();
   };
@@ -727,9 +992,9 @@ async function boot(): Promise<void> {
       panelBody.innerHTML =
         `<h2>${assistantCopy.circledArea}</h2>` +
         `<div class="since">${mapCopy.drawToAsk}</div>` +
-        askHtml.replace(assistantCopy.askAbout, assistantCopy.askThisArea) +
-        sharesHtml(gestureId) +
-        `<div class="compose"><button id="gesture-drop">${mapCopy.letItGo}</button></div>`;
+        `<div class="acts"><button id="ask-open">${assistantCopy.askThisArea}</button><button id="gesture-drop">${mapCopy.letItGo}</button></div>` +
+        askHtml +
+        sharesHtml(gestureId);
       wireAsk();
       wireShares(() => {
         // The gesture was promoted into the grant; the panel closes.
@@ -740,35 +1005,86 @@ async function boot(): Promise<void> {
       el("gesture-drop").addEventListener("click", closePanel);
     };
     render();
-    panel.hidden = false;
-    el("hint").hidden = true;
+    showPanel();
   };
 
-  // ----------------------------------------------------------- layer switcher
-  const layersBox = el<HTMLElement>("layers");
-  const lensButtons = new Map<string, HTMLButtonElement>();
-  for (const l of LENSES) {
+  // ------------------------------------------------------------ what's shown
+  // One quiet control (Grower Rule 2) opening the legend (Rule 5) and the
+  // four switches. The farm's own layers are not switches: a grower never
+  // wants their fields off.
+  const shownToggle = el<HTMLButtonElement>("shown-toggle");
+  const shownList = el<HTMLElement>("shown-list");
+  const switches = new Map<string, HTMLButtonElement>();
+  const keyRow = (swatch: string, fill: boolean, words: string, trailing: string): HTMLElement => {
+    const row = document.createElement("div");
+    row.className = "key";
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    if (fill) sw.classList.add("fill");
+    sw.style.background = swatch;
+    const label = document.createElement("span");
+    label.textContent = words;
+    const tail = document.createElement("span");
+    tail.className = "always";
+    tail.textContent = trailing;
+    row.append(sw, label, tail);
+    return row;
+  };
+  for (const [crop, colour] of Object.entries(CROP_COLOR)) {
+    shownList.appendChild(keyRow(colour, true, legend[crop] ?? crop, ""));
+  }
+  for (const group of ALWAYS_GROUPS) {
+    shownList.appendChild(keyRow(GROUP_COLOR[group] ?? "", false, legend[group] ?? group, mapCopy.always));
+  }
+  for (const [name, family] of Object.entries(OPTIONAL)) {
     const b = document.createElement("button");
-    b.textContent = shell.lenses[l.name] ?? l.name;
-    b.classList.add("lens", "on");
+    b.className = "switch";
+    b.setAttribute("aria-pressed", "true");
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    sw.style.background = GROUP_COLOR[family] ?? LENS_STYLE[name]?.color ?? "";
+    const label = document.createElement("span");
+    label.textContent = legend[family] ?? shell.lenses[name] ?? name;
+    const track = document.createElement("span");
+    track.className = "track";
+    b.append(sw, label, track);
     b.addEventListener("click", () => {
-      session.toggle(l.name);
-      b.classList.toggle("on");
+      session.toggle(name);
+      syncSwitches();
       paint();
       remember();
     });
-    lensButtons.set(l.name, b);
-    layersBox.appendChild(b);
+    switches.set(name, b);
+    shownList.appendChild(b);
   }
-  const syncLensButtons = (): void => {
-    for (const l of session.view.lenses) lensButtons.get(l.name)?.classList.toggle("on", l.visible);
+  const syncSwitches = (): void => {
+    for (const l of session.view.lenses) {
+      switches.get(l.name)?.setAttribute("aria-pressed", String(l.visible));
+    }
   };
+  const showList = (open: boolean): void => {
+    shownList.hidden = !open;
+    shownToggle.setAttribute("aria-expanded", String(open));
+  };
+  shownToggle.addEventListener("click", () => showList(shownList.hidden));
+  document.addEventListener("click", (e) => {
+    if (!shownList.hidden && !el("shown").contains(e.target as Node)) showList(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !shownList.hidden) showList(false);
+  });
 
   // ---------------------------------------------------------------- timeline
   const seasonInput = el<HTMLInputElement>("season");
   const seasonLabel = el<HTMLElement>("season-label");
   const todayBtn = el<HTMLButtonElement>("today");
-  // Year ticks (REVIEW-003 §4.4): the scrubber says what it controls.
+  // The scrubber says what it controls (REVIEW-003 §4.4; Grower Rule 2):
+  // a caption, a label, and year ticks.
+  const caption = el<HTMLElement>("season-caption");
+  caption.textContent = mapCopy.timeSlider;
+  const drag = document.createElement("small");
+  drag.textContent = mapCopy.dragToLookBack;
+  caption.appendChild(drag);
   const ticks = el<HTMLElement>("ticks");
   seasonInput.max = String(MONTHS);
   seasonInput.value = String(MONTHS);
@@ -790,6 +1106,7 @@ async function boot(): Promise<void> {
       seasonLabel.textContent = monthLabel(idx);
       todayBtn.hidden = false;
     }
+    seasonInput.setAttribute("aria-valuetext", seasonLabel.textContent ?? "");
     if (!panel.hidden && session.view.selection.length === 1) {
       renderPanel(session.view.selection[0] as Id);
     }
@@ -835,14 +1152,23 @@ async function boot(): Promise<void> {
         return name.includes(q) || body.includes(q);
       })
       .slice(0, 6);
+    if (hits.length === 0) {
+      // Nothing found is said, not hidden (Grower Rule 3).
+      searchResults.innerHTML = `<div class="quiet">${shell.nothingCalled(searchInput.value.trim())}</div>`;
+      searchResults.hidden = false;
+      return;
+    }
     searchResults.innerHTML = hits
       .map((r) => {
         const label = nameOf(r.id) || text(r);
-        const where = r.kind === "entity" ? kinds[r.classification] ?? "" : nameOf(r.subjects[0] as Id) || kinds[r.classification] || "";
+        const where =
+          r.kind === "entity"
+            ? kinds[r.classification] ?? ""
+            : [placeNameOf(r.subjects[0] as Id) || kinds[r.classification] || "", fmtDate(r.occurrence.start)].filter((w) => w !== "").join(" · ");
         return `<button data-id="${r.id}"><span>${label}</span><small>${where}</small></button>`;
       })
       .join("");
-    searchResults.hidden = hits.length === 0;
+    searchResults.hidden = false;
     for (const b of searchResults.querySelectorAll("button")) {
       b.addEventListener("click", () => goTo((b as HTMLElement).dataset.id as Id));
     }
@@ -940,14 +1266,19 @@ async function boot(): Promise<void> {
   // ------------------------------------------------------------- looking as
   const restoreSaved = (): void => {
     const saved = loadSaved();
-    if (saved === undefined) return;
+    if (saved === undefined) {
+      applySeason();
+      return;
+    }
     map.jumpTo({ center: saved.center, zoom: saved.zoom });
     seasonInput.value = String(saved.season);
+    // Only the switches are remembered; the farm's own layers never hide.
     for (const [name, visible] of Object.entries(saved.lenses ?? {})) {
+      if (!(name in OPTIONAL)) continue;
       const current = session.view.lenses.find((l) => l.name === name);
       if (current !== undefined && current.visible !== visible) session.toggle(name);
     }
-    syncLensButtons();
+    syncSwitches();
     applySeason();
     const selected = saved.selection?.[0];
     if (selected !== undefined && session.reading.get(selected) !== undefined) openPanel(selected);
@@ -1030,4 +1361,6 @@ async function boot(): Promise<void> {
   }, 8000);
 }
 
-void boot();
+// A shell that throws while opening is a dark screen with no words; the
+// notice says the one thing that is true (Grower Rule 3).
+boot().catch(() => notice(freshness.cantReach));
