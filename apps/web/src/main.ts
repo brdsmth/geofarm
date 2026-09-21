@@ -15,6 +15,7 @@ import {
   claims,
   crops,
   freshness,
+  ground as groundCopy,
   kinds,
   legend,
   map as mapCopy,
@@ -55,6 +56,9 @@ import {
 /** The lens stack (RFC-0005): named filters over the one world. */
 const LENSES = [
   { name: "fields", filter: { classifications: ["field", "zone"] } },
+  // The soil survey's mapped units: under the farm's own marks, so a
+  // note or a pond is still a tap away while the soil types are showing.
+  { name: "ground", filter: { classifications: ["soil-unit"] } },
   { name: "boundary", filter: { classifications: ["farm"] } },
   { name: "places", filter: { classifications: ["pond", "building", "road"] } },
   {
@@ -86,7 +90,10 @@ const LENSES = [
  * fields, line, places, and work are never something to turn off, so
  * they are not switches. Each optional lens names the legend family
  * its marks belong to. */
-const OPTIONAL: Record<string, string> = { soil: "soil", weather: "weather", imagery: "imagery", office: "paper" };
+const OPTIONAL: Record<string, string> = { ground: "ground", soil: "soil", weather: "weather", imagery: "imagery", office: "paper" };
+/** Switches that start off (Grower Rule 2): a county survey's lines over
+ * every field are an answer to a question, not the first screen. */
+const OFF_AT_FIRST = new Set(["ground"]);
 /** The mark families that are always on the map, in legend order. */
 const ALWAYS_GROUPS = ["operation", "observation", "claim", "place"];
 
@@ -99,6 +106,7 @@ const GROUP: Record<string, string> = {
   note: "observation",
   "soil-sample": "observation",
   "soil-site": "soil",
+  "soil-unit": "ground",
   diagnosis: "claim",
   reading: "claim",
   anomaly: "claim",
@@ -160,6 +168,10 @@ function fmtWhen(iso: string): string {
     ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : `${fmtDate(iso)} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
+
+/** A source's places enter dated "before our records" (the epoch): that
+ * is a way of saying no date, and is never shown as one. */
+const undated = (iso: string): boolean => Date.parse(iso) <= Date.UTC(1970, 0, 2);
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const text = (r: AdmittedRecord | undefined): string => {
@@ -410,7 +422,7 @@ async function boot(): Promise<void> {
       const n = (r.body as { name?: string } | undefined)?.name;
       if (r.kind === "actor" && n !== undefined) names.set(r.id, n);
     }
-    for (const l of LENSES) session.reveal({ name: l.name, filter: l.filter, visible: true });
+    for (const l of LENSES) session.reveal({ name: l.name, filter: l.filter, visible: !OFF_AT_FIRST.has(l.name) });
     // The assistant, engaged inside this viewer's situation (RFC-0010):
     // the engagement reads the live View + Pending + Reading.
     engagement = new AskEngagement(
@@ -485,7 +497,15 @@ async function boot(): Promise<void> {
     const cls = r?.classification ?? "";
     const name = nameOf(id) || text(r) || kinds[cls] || shell.thisPlace;
     const crop = cls === "field" ? cropOf(id) : "";
-    const label = crop !== "" && crop !== "fallow" ? `${name} · ${crops[crop] ?? crop}` : name;
+    // A soil type's map label is its survey symbol and its short name:
+    // the slope and erosion phrases are in its story, not on the map.
+    const symbol = (r?.body as { symbol?: string } | undefined)?.symbol;
+    const label =
+      cls === "soil-unit"
+        ? [symbol, name.split(",")[0]].filter((w) => w !== undefined && w !== "").join(" · ")
+        : crop !== "" && crop !== "fallow"
+          ? `${name} · ${crops[crop] ?? crop}`
+          : name;
     return { name, kind: r?.kind ?? "", group: GROUP[cls] ?? "", crop, label };
   };
 
@@ -568,7 +588,7 @@ async function boot(): Promise<void> {
   const farmStoryOf = (): string => {
     const bound = Date.parse(session.view.time.end ?? session.view.time.start);
     // The sources' streams have their own lenses; the pulse is people's work.
-    const streamed = new Set([...WEATHER_CLASSIFICATIONS, "imagery"]);
+    const streamed = new Set([...WEATHER_CLASSIFICATIONS, "imagery", "soil-survey"]);
     const rows = session.reading
       .all()
       .filter((r) => r.kind !== "entity" && r.kind !== "actor" && r.classification !== "grant")
@@ -589,7 +609,9 @@ async function boot(): Promise<void> {
     const name = nameOf(id) || text(r) || shell.thisPlace;
     const kindLabel = kinds[r.classification] ?? shell.place;
     const since =
-      r.kind === "entity"
+      r.kind === "entity" && undated(r.occurrence.start)
+        ? `<div class="since">${kindLabel}</div>`
+        : r.kind === "entity"
         ? `<div class="since">${shell.hereSince(kindLabel, String(new Date(r.occurrence.start).getFullYear()))}</div>`
         : `<div class="since">${shell.whenWhat(kindLabel, fmtDate(r.occurrence.start))}</div>`;
     if (r.classification === "farm") {
@@ -606,10 +628,54 @@ async function boot(): Promise<void> {
     // A satellite pass shows its preview: the pixels are payload, shown
     // as what they are (RFC-0003 §3.1), with the provider's own facts.
     const scene = r.classification === "imagery" ? sceneHtml(r) : "";
+    const soil = r.classification === "soil-unit" ? groundHtml(r, bundle?.timeline ?? []) : "";
     const rows = (bundle?.timeline ?? []).slice().reverse().map((h) => rowHtml(h)).join("");
     const rowsOrQuiet =
       rows.length > 0 ? `<h3>${shell.whatsHappened}</h3>${rows}` : `<p class='quiet'>${shell.nothingYet}</p>`;
-    return { head: `<h2>${name}</h2>${since}${growing}`, rest: `${scene}${frameHtml()}${fork}${rowsOrQuiet}` };
+    return { head: `<h2>${name}</h2>${since}${growing}`, rest: `${scene}${soil}${frameHtml()}${fork}${rowsOrQuiet}` };
+  };
+
+  /** A soil type's facts: what the survey standing at the View's time
+   * says of it, in the grower's units, ending with what a survey is. */
+  const groundHtml = (unit: AdmittedRecord, timeline: readonly AdmittedRecord[]): string => {
+    const acres = (unit.body as { acresHere?: number } | undefined)?.acresHere;
+    const said = timeline.filter((h) => h.classification === "soil-survey").at(-1);
+    type Horizon = { topCm?: number; bottomCm?: number; clayPct?: number; organicMatterPct?: number; pH?: number };
+    type Soil = { name?: string; percent?: number; major?: boolean; horizons?: Horizon[] };
+    const b = (said?.body ?? {}) as {
+      soils?: Soil[];
+      drainage?: string;
+      slopePct?: number;
+      availableWaterTop100Cm?: number;
+      waterTableCm?: number;
+      floodFrequency?: string;
+      cornSuitabilityRating?: number;
+      productivityIndex?: number;
+      farmland?: string;
+    };
+    const inches = (cm: number): string => String(Math.round(cm / 2.54));
+    const soils = (b.soils ?? []).filter((c) => c.name !== undefined && c.percent !== undefined);
+    const top = soils.find((c) => c.major === true)?.horizons?.[0];
+    const topFacts = [
+      top?.clayPct !== undefined ? groundCopy.clay(String(Math.round(top.clayPct))) : "",
+      top?.organicMatterPct !== undefined ? groundCopy.organicMatter(String(top.organicMatterPct)) : "",
+      top?.pH !== undefined ? groundCopy.pH(String(top.pH)) : "",
+    ].filter((f) => f !== "");
+    const lines = [
+      acres !== undefined ? groundCopy.acresHere(String(acres)) : "",
+      b.cornSuitabilityRating !== undefined ? groundCopy.cornRating(String(b.cornSuitabilityRating)) : "",
+      b.productivityIndex !== undefined ? groundCopy.productivity(String(Math.round(b.productivityIndex * 100))) : "",
+      b.farmland ?? "",
+      b.drainage !== undefined ? groundCopy.drainage(b.drainage.toLowerCase()) : "",
+      b.slopePct !== undefined ? groundCopy.slope(String(Math.round(b.slopePct))) : "",
+      b.availableWaterTop100Cm !== undefined ? groundCopy.holdsWater(String(Math.round((b.availableWaterTop100Cm / 2.54) * 10) / 10)) : "",
+      b.waterTableCm !== undefined ? groundCopy.waterTable(inches(b.waterTableCm)) : "",
+      b.floodFrequency !== undefined && b.floodFrequency !== "None" ? groundCopy.floods(b.floodFrequency.toLowerCase()) : "",
+      top?.bottomCm !== undefined && topFacts.length > 0 ? groundCopy.topsoil(inches(top.bottomCm), topFacts.join(", ")) : "",
+      soils.length > 0 ? groundCopy.madeOf(soils.map((c) => groundCopy.share(c.name as string, String(c.percent))).join(", ")) : "",
+    ].filter((l) => l !== "");
+    const basis = said === undefined ? "" : `<p class="quiet">${groundCopy.fromSurvey(fmtDate(said.occurrence.start))}</p>`;
+    return `${lines.map((l) => `<div class="since">${l}</div>`).join("")}${basis}`;
   };
 
   const sceneHtml = (r: AdmittedRecord): string => {
@@ -936,7 +1002,7 @@ async function boot(): Promise<void> {
       .sort((a, b) => Date.parse(b.occurrence.start) - Date.parse(a.occurrence.start))
       .map(
         (r) =>
-          `<button data-id="${r.id}"><span class="when">${fmtDate(r.occurrence.start)}</span><span class="what">${text(r)}</span><span class="who">${nameOf(r.actors.actor)}</span></button>`,
+          `<button data-id="${r.id}"><span class="when">${undated(r.occurrence.start) ? (kinds[r.classification] ?? "") : fmtDate(r.occurrence.start)}</span><span class="what">${text(r)}</span><span class="who">${nameOf(r.actors.actor)}</span></button>`,
       )
       .join("");
     panelBody.innerHTML = `<h2>${shell.atThisSpot}</h2><div class="since">${shell.severalHere(ids.length)}</div><div class="stack">${rows}</div>`;
@@ -1062,6 +1128,7 @@ async function boot(): Promise<void> {
       switches.get(l.name)?.setAttribute("aria-pressed", String(l.visible));
     }
   };
+  syncSwitches(); // a switch that starts off says so from the first paint
   const showList = (open: boolean): void => {
     shownList.hidden = !open;
     shownToggle.setAttribute("aria-expanded", String(open));
@@ -1267,6 +1334,7 @@ async function boot(): Promise<void> {
   const restoreSaved = (): void => {
     const saved = loadSaved();
     if (saved === undefined) {
+      syncSwitches();
       applySeason();
       return;
     }
@@ -1324,7 +1392,11 @@ async function boot(): Promise<void> {
       if (top !== undefined) {
         // The engine surfaced a feature; the Reading answers (RFC-0015 §1).
         const props = top.properties as MarkFeatureProps;
+        // A soil type lies over a field, never instead of it: a tap that
+        // lands on both offers both.
+        const under = [...new Set(features.map((f) => (f.properties as MarkFeatureProps).id))] as Id[];
         if (props.count > 1) renderStack(props.ids.split(",") as Id[]);
+        else if (props.lens === "ground" && under.length > 1) renderStack(under);
         else openPanel(props.id as Id);
       } else {
         closePanel();

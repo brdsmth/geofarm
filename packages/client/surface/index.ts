@@ -105,7 +105,7 @@ export const sharing = {
  * participants, listed as sources — never as people the farm shares with.
  * Stopping one says what stops (Grower Rule 8). */
 export const sources = {
-  heading: "Where the weather and satellite come from",
+  heading: "Where the weather, satellite, and soil survey come from",
   stopUsing: "Stop using",
   willStop: (what: string) => `${what} will stop updating on this farm`,
   neverReported: (what: string) => `${what} hasn't reported yet`,
@@ -182,6 +182,8 @@ export const kinds: Record<string, string> = {
   "soil-site": "Sample site",
   "soil-sample": "Soil sample",
   "soil-estimate": "Soil estimate",
+  "soil-unit": "Soil type",
+  "soil-survey": "Soil survey",
   "weather-station": "Weather station",
   "weather-reading": "Weather reading",
   "weather-estimate": "Weather estimate",
@@ -210,9 +212,34 @@ export const legend: Record<string, string> = {
   claim: "Answers, alerts, and advice",
   paper: "Paperwork",
   place: "Ponds, buildings, roads",
+  ground: "Soil types — USDA survey",
   soil: "Sample sites",
   weather: "Weather",
   imagery: "Satellite passes",
+};
+
+/** The soil survey, said plainly: what the survey says of a piece of
+ * ground. A survey is drawn from pits dug across a county, not measured
+ * in this field — the last line says so (a claim is not a fact), and the
+ * row beneath carries how sure. Inches and acres: the survey's
+ * centimetres are the survey's, not the grower's. */
+export const ground = {
+  acresHere: (acres: string) => `${acres} acres of it on this farm`,
+  madeOf: (soils: string) => `What's in it: ${soils}`,
+  share: (soil: string, pct: string) => `${soil} ${pct}%`,
+  drainage: (how: string) => `Drainage: ${how}`,
+  slope: (pct: string) => `Slope: about ${pct}%`,
+  holdsWater: (inches: string) => `Holds about ${inches} in. of water a crop can use, in the top 40 in.`,
+  waterTable: (inches: string) => `Water table comes within ${inches} in. of the surface`,
+  floods: (how: string) => `Flooding: ${how}`,
+  cornRating: (rating: string) => `Corn suitability rating (CSR2): ${rating} out of 100`,
+  productivity: (index: string) => `National crop productivity index: ${index} out of 100`,
+  topsoil: (inches: string, facts: string) => `Top ${inches} in.: ${facts}`,
+  clay: (pct: string) => `${pct}% clay`,
+  organicMatter: (pct: string) => `${pct}% organic matter`,
+  pH: (value: string) => `pH ${value}`,
+  fromSurvey: (when: string) =>
+    `From the USDA soil survey published ${when}. Surveyors mapped this from pits dug across the county — it is their best description, not a test of this field.`,
 };
 
 /** The lens switcher and the shell's own chrome. */
@@ -223,6 +250,7 @@ export const shell = {
     boundary: "Farm line",
     places: "Places",
     work: "Notes & work",
+    ground: "Soil types",
     soil: "Soil",
     weather: "Weather",
     imagery: "Satellite",

@@ -19,6 +19,7 @@ const maplibregl: typeof ML = ((ML as { default?: typeof ML }).default ?? ML) as
  * `fill: false` never washes the ground it outlines. */
 export const LENS_STYLE: Record<string, { color: string; fill: boolean }> = {
   fields: { color: "#9fb8a6", fill: true },
+  ground: { color: "#e07a5f", fill: true },
   boundary: { color: "#ffd166", fill: false },
   places: { color: "#5bc8f5", fill: true },
   work: { color: "#f2a65a", fill: true },
@@ -47,6 +48,7 @@ export const GROUP_COLOR: Record<string, string> = {
   claim: "#c792ea",
   paper: "#e6e6e6",
   place: "#5bc8f5",
+  ground: "#e07a5f",
   soil: "#c9a27e",
   weather: "#8fd3ff",
   imagery: "#b8b8ff",
@@ -63,6 +65,11 @@ function toGeoJSONGeometry(g: Geometry): GeoJSON.Geometry {
     case "volume":
       return { type: "Polygon", coordinates: g.base };
     case "collection":
+      // One thing in several pieces (a soil type either side of a draw)
+      // is one shape to the engine, so it fills, outlines, and picks as one.
+      if (g.members.every((m) => m.form === "area")) {
+        return { type: "MultiPolygon", coordinates: g.members.map((m) => (m as { rings: [number, number][][] }).rings) };
+      }
       return { type: "GeometryCollection", geometries: g.members.map(toGeoJSONGeometry) };
   }
 }
@@ -232,7 +239,9 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
     filter: ["in", ["geometry-type"], ["literal", ["Polygon", "LineString"]]],
     paint: {
       "line-color": ["case", SELECTED, "#ffffff", lens === "fields" ? fillColor : color],
-      "line-width": ["case", SELECTED, 4, lens === "boundary" ? 2.5 : 2],
+      // A county survey's lines are many and fine: drawn light, so the
+      // farm's own lines still read as the farm's.
+      "line-width": ["case", SELECTED, 4, lens === "boundary" ? 2.5 : lens === "ground" ? 1 : 2],
       ...(lens === "boundary" ? { "line-dasharray": [2, 2] } : {}),
     },
   });
@@ -275,6 +284,10 @@ export function ensureLensLayers(map: ML.Map, lens: string): void {
  * a dot rather than vanishing. */
 export function ensureLensLabels(map: ML.Map, lens: string): void {
   if (map.getLayer(`${lens}-label`) !== undefined) return;
+  // Names collide top layer first. A soil type's name goes beneath the
+  // fields' names, so it yields: the farm's own names are never the ones
+  // that vanish.
+  const beneath = lens === "ground" && map.getLayer("fields-label") !== undefined ? "fields-label" : undefined;
   map.addLayer({
     id: `${lens}-label`,
     type: "symbol",
@@ -290,7 +303,7 @@ export function ensureLensLabels(map: ML.Map, lens: string): void {
       "text-size": lens === "fields" ? 14 : 12,
       "text-padding": 6,
       "text-variable-anchor":
-        lens === "fields" ? ["center", "top", "bottom", "left", "right"] : ["top", "bottom", "left", "right"],
+        lens === "fields" || lens === "ground" ? ["center", "top", "bottom", "left", "right"] : ["top", "bottom", "left", "right"],
       "text-radial-offset": lens === "fields" ? 1.2 : 0.8,
     },
     paint: {
@@ -298,7 +311,7 @@ export function ensureLensLabels(map: ML.Map, lens: string): void {
       "text-halo-color": "#0b1a10",
       "text-halo-width": 1.4,
     },
-  });
+  }, beneath);
 }
 
 export function setLensData(
