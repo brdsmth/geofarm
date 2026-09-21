@@ -1,6 +1,7 @@
 /**
  * The live sources, pulled on a cadence: the weather service, the weather
- * archive, the imagery catalog — and the intelligence's own weekly job.
+ * archive, the imagery catalog, the soil survey — and the intelligence's
+ * own weekly job.
  * surface-exempt-file: operator log lines — developer-facing, not copy.
  *
  * Nothing here is sync machinery (S3). Each pull is translation into
@@ -17,6 +18,9 @@ import { NWS_CHANNELS, NWS_GROUND, nwsFetch, nwsHourlyForecast, nwsNearestStatio
 import { OPEN_METEO_CHANNELS, OPEN_METEO_GROUND, archiveStation, archiveToReadings, fetchArchive } from "../../packages/feeds/weather/open-meteo.ts";
 import { ImageryFeed } from "../../packages/feeds/imagery/index.ts";
 import { searchScenes } from "../../packages/feeds/imagery/earth-search.ts";
+import { SoilSurveyFeed } from "../../packages/feeds/soil-survey/index.ts";
+import { SSURGO_GROUND, archiveSurvey, readSurvey, type SurveyCache } from "../../packages/feeds/soil-survey/sda.ts";
+import { mirrorSurveyArea } from "./soil.ts";
 import { AnomalyJob, type SceneIndex } from "../../packages/agent/anomaly.ts";
 import { walkAll } from "../../packages/agent/index.ts";
 import { vegetationIndexOf } from "./ndvi.ts";
@@ -24,7 +28,7 @@ import { vegetationIndexOf } from "./ndvi.ts";
 export type SourcesConfig = {
   boundary: Boundary;
   org: Id;
-  actors: { weather: Id; archive: Id; imagery: Id; assistant: Id };
+  actors: { weather: Id; archive: Id; imagery: Id; soilSurvey: Id; assistant: Id };
   names: NonNullable<WeatherFeedConfig["classifications"]>;
   /** The region the farm engaged the sources for, and its centre. */
   engaged: Area;
@@ -33,6 +37,10 @@ export type SourcesConfig = {
   userAgent: string;
   /** How far back the archives reach on first pull. */
   years?: number;
+  /** Where the soil survey's answers are held between pulls. */
+  surveyCache: SurveyCache;
+  /** Where each touched survey area is kept whole; unset, none is. */
+  surveyMirrorDir?: string;
   log: (line: string) => void;
 };
 
@@ -102,6 +110,36 @@ export async function pullImagery(cfg: SourcesConfig, opts: { days?: number } = 
   cfg.log(`imagery: ${report.admitted} new passes of ${scenes.length} found${skipped !== "" ? ` (${skipped})` : ""}`);
 }
 
+/** The soil survey: the units under the farm and what the survey says of
+ * them, admitted; then everything else the service holds for those units
+ * and the touched survey areas whole, kept. The survey republishes about
+ * once a year, so nearly every pull is one small question — "has the
+ * version changed?" — answered no. */
+export async function pullSoilSurvey(cfg: SourcesConfig): Promise<void> {
+  const feed = new SoilSurveyFeed(cfg.boundary, cfg.actors.soilSurvey, { org: cfg.org, ground: SSURGO_GROUND });
+  const opts = { engaged: cfg.engaged, cache: cfg.surveyCache };
+  const read = await readSurvey(opts);
+  const report = await feed.ingestSurvey(read.units);
+  const refused = report.skipped.filter((s) => s.reason !== "already recorded");
+  cfg.log(
+    `soil survey: ${read.areas.map((a) => `${a.symbol} v${a.version}`).join(", ") || "no survey here"}` +
+      `${read.held ? " (service unreachable; held copy)" : ""}: ${report.introduced} new units, ${report.redrawn} redrawn, ` +
+      `${report.described} new descriptions of ${read.units.length}` +
+      (refused.length > 0 ? ` (${refused.length} refused: ${refused[0]?.reason})` : ""),
+  );
+  if (read.held || read.units.length === 0) return;
+  const kept = await archiveSurvey(read.units.map((u) => u.foreignId), read.version, opts);
+  cfg.log(
+    `soil survey: archive ${kept.rows} rows held (${kept.fetched} answers fetched, ${kept.held} already held)` +
+      (kept.refused.length > 0 ? `; refused ${kept.refused.join(", ")}` : ""),
+  );
+  if (cfg.surveyMirrorDir === undefined) return;
+  for (const area of read.areas) {
+    const m = await mirrorSurveyArea(area, cfg.surveyMirrorDir);
+    cfg.log(`soil survey: ${area.symbol} whole ${m.fetched ? "fetched" : "already held"} (${(m.bytes / 1e6).toFixed(1)} MB) ${m.path}`);
+  }
+}
+
 /** The intelligence's autonomous mode (RFC-0010 §1): once a week, the
  * imagery is read for what looks anomalous, and the findings are authored
  * as claims that sit on the map like anyone's (RFC-0016 A4). */
@@ -142,17 +180,20 @@ export function schedule(cfg: SourcesConfig): { stop: () => void } {
   const imagery = guarded("imagery", () => pullImagery(cfg));
   const recent = guarded("imagery", () => pullImagery(cfg, { days: 14 }));
   const anomaly = guarded("anomaly", () => runAnomaly(cfg));
+  const soil = guarded("soil survey", () => pullSoilSurvey(cfg));
 
   const timers: ReturnType<typeof setInterval>[] = [];
   void (async () => {
     await forecast();
     await archive();
     await imagery();
+    await soil();
     await anomaly();
     timers.push(setInterval(weather, 60 * 60 * 1000));
     timers.push(setInterval(forecast, DAY));
     timers.push(setInterval(recent, DAY));
     timers.push(setInterval(anomaly, 7 * DAY));
+    timers.push(setInterval(soil, 7 * DAY));
   })();
   return { stop: () => timers.forEach(clearInterval) };
 }

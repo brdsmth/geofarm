@@ -38,7 +38,12 @@ export const FEED_ACTORS = {
   weather: "miller:nws",
   archive: "miller:open-meteo",
   imagery: "miller:earth-search",
+  soilSurvey: "miller:nrcs-soil-survey",
 } as const;
+
+/** What the soil survey's records are called (RFC-0011 §2 Amendment 1):
+ * the mapped unit is a place; what the survey says of it is a claim. */
+export const SOIL_SURVEY_CLASSIFICATIONS = ["soil-unit", "soil-survey"];
 
 /** What the weather sources' records are called — border configuration
  * (RFC-0011 §2 Amendment 1), chosen so a station's reading and the
@@ -83,6 +88,7 @@ export const AGRONOMY = [
   "anomaly",
   "soil-site",
   "soil-sample",
+  ...SOIL_SURVEY_CLASSIFICATIONS,
   ...WEATHER_CLASSIFICATIONS,
   "imagery",
 ];
@@ -224,6 +230,7 @@ export async function seedFarm(journal: Journal): Promise<void> {
           "advisory",
           "soil-site",
           "soil-sample",
+          ...SOIL_SURVEY_CLASSIFICATIONS,
           ...WEATHER_CLASSIFICATIONS,
           "imagery",
         ],
@@ -459,15 +466,38 @@ export async function seedFarm(journal: Journal): Promise<void> {
   // service, the weather archive, and the imagery catalog, each engaged
   // over the classifications it may author. Their content arrives later,
   // through the door, as anyone's would.
+  await engageSources(journal);
+}
+
+/** The live sources (RFC-0011 §1: connecting is granting): each engaged
+ * over the classifications it may author. Idempotent — a source the farm
+ * already engaged is left alone, so a farm seeded before a source existed
+ * engages it on the next start, by the same grant arriving later. Returns
+ * the names of the sources engaged by this call. */
+export async function engageSources(journal: Journal): Promise<string[]> {
+  const org = CAST.org;
   const engaged: [Id, string, string[]][] = [
     [FEED_ACTORS.weather, "National Weather Service", WEATHER_CLASSIFICATIONS],
     [FEED_ACTORS.archive, "Open-Meteo weather archive", WEATHER_CLASSIFICATIONS],
     [FEED_ACTORS.imagery, "Earth Search (Sentinel-2)", ["imagery"]],
+    [FEED_ACTORS.soilSurvey, "USDA Soil Survey", SOIL_SURVEY_CLASSIFICATIONS],
   ];
+  const added: string[] = [];
   for (const [id, name, classifications] of engaged) {
-    await journal.admit(actor(id, "service", name));
+    if ((await journal.get(id)) !== undefined) continue;
     await journal.admit({
-      id: newId(),
+      id,
+      kind: "actor",
+      classification: "service",
+      actors: { actor: id, onBehalfOf: [org] },
+      occurrence: { start: "2000-01-01T00:00:00Z" },
+      subjects: [],
+      body: { name },
+    });
+    await journal.admit({
+      // Named for the source, not numbered: this may run long after the
+      // seed's counter is gone, and must never collide with it.
+      id: `${id}:engagement`,
       kind: "event",
       classification: "grant",
       actors: { actor: org, onBehalfOf: [] },
@@ -475,5 +505,7 @@ export async function seedFarm(journal: Journal): Promise<void> {
       subjects: [org],
       body: { grantee: id, scope: { classifications }, capabilities: ["represent"] },
     });
+    added.push(name);
   }
+  return added;
 }

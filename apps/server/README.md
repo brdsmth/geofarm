@@ -26,9 +26,12 @@ journal is the only memory: restart the server, nothing is lost.
 | Weather | National Weather Service (api.weather.gov) | `NWS_USER_AGENT` naming you (they ask) |
 | Weather archive | Open-Meteo (ERA5 reanalysis) | nothing |
 | Imagery | Earth Search — Sentinel-2 L2A on AWS | nothing |
+| Soil survey | USDA NRCS Soil Data Access — SSURGO, the data behind Web Soil Survey | nothing |
 
 Unset `GEOFARM_PG_URL` and the server runs in memory, for a look.
-`GEOFARM_SOURCES=off` leaves the live sources alone. `GEOFARM_ENGINE`
+`GEOFARM_SOURCES=off` leaves the live sources alone. `GEOFARM_DATA_DIR`
+(default `./data`, git-ignored) is where whole survey areas are kept;
+`off` keeps none. `GEOFARM_ENGINE`
 forces `ollama`, `anthropic`, or `rules`.
 
 ## The API
@@ -48,10 +51,27 @@ before going live.
 
 On boot: the weather station's last week and the next two days' forecast;
 five years of daily archive estimates; five years of clear satellite
-passes; then the assistant's anomaly read over the last two dozen passes.
-Thereafter: observations hourly, forecast and recent imagery daily, the
-anomaly read weekly. A pull repeated admits only what the world does not
-already hold.
+passes; the soil survey under the farm; then the assistant's anomaly read
+over the last two dozen passes. Thereafter: observations hourly, forecast
+and recent imagery daily, the soil survey and the anomaly read weekly. A
+pull repeated admits only what the world does not already hold.
+
+## The soil survey, and what is kept
+
+The survey's map units under the farm are admitted as places, and what
+the survey says of each as a claim about it. Beyond what is admitted,
+the server keeps the provider's own words so they never have to be asked
+for twice:
+
+| Kept | Where | What |
+|---|---|---|
+| Every answer the service gave | `source_cache` table, beside the journal | Units, properties, and an archive of every table the service holds for those units, by request and survey version |
+| Each touched survey area, whole | `$GEOFARM_DATA_DIR/soil-survey/<area>_<date>.zip` | Shapes and all tables for the county, as NRCS publishes them; a new version lands beside the old |
+
+The first pull takes under a minute. Every pull after asks one small
+question — has the survey's version changed? — and until it has (about
+once a year) touches nothing else. If the service is down, the held copy
+answers. In memory mode nothing is kept, the survey included.
 
 ## Reading the instruments over a lived log
 

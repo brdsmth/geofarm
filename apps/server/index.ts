@@ -14,6 +14,8 @@
  *   GEOFARM_SOURCES     off to leave the live sources alone
  *   GEOFARM_API_TOKEN   a shared bearer token gating the whole API
  *   NWS_USER_AGENT      who to say we are to the weather service
+ *   GEOFARM_DATA_DIR    where whole survey areas are kept (default ./data,
+ *                       with a postgres store; "off" keeps none)
  *
  * What is not here: authentication. The server trusts the Actor a caller
  * names (packages/boundary/http.ts says why that is fine on a laptop and
@@ -32,8 +34,10 @@ import type { Reasoner } from "../../packages/agent/index.ts";
 import { ollamaAvailable, ollamaEngine } from "../../packages/agent/engines/ollama.ts";
 import { anthropicEngine } from "../../packages/agent/engines/anthropic.ts";
 import { concludeFromWire } from "../../packages/agent/remote.ts";
-import { CAST, FARM_CENTER, FARM_RING, FEED_ACTORS, WEATHER_NAMES, seedFarm } from "../web/src/seed.ts";
+import { CAST, FARM_CENTER, FARM_RING, FEED_ACTORS, WEATHER_NAMES, engageSources, seedFarm } from "../web/src/seed.ts";
+import { MemorySurveyCache } from "../../packages/feeds/soil-survey/sda.ts";
 import { schedule } from "./sources.ts";
+import { PostgresSurveyCache } from "./soil.ts";
 
 const env = process.env;
 const port = Number(env.PORT ?? 4790);
@@ -48,6 +52,10 @@ if ((await journal.head()) === 0) {
   await seedFarm(journal);
   log(`seeded: ${await journal.head()} records`);
 }
+// A farm seeded before a source existed engages it now (RFC-0011 §1:
+// connecting is granting) — the same grant, arriving later.
+const engagedNow = await engageSources(journal);
+if (engagedNow.length > 0) log(`engaged: ${engagedNow.join(", ")}`);
 const boundary = new Boundary(journal);
 
 // ----------------------------------------------------------------- engine
@@ -72,7 +80,11 @@ log(`engine: ${engineName}`);
 // ---------------------------------------------------------------- sources
 const sourcesOn = env.GEOFARM_SOURCES !== "off";
 if (sourcesOn) {
+  // A store that keeps things keeps the survey too; a look keeps nothing.
+  const dataDir = env.GEOFARM_DATA_DIR ?? "data";
   schedule({
+    surveyCache: pgUrl !== undefined ? await PostgresSurveyCache.open(pgUrl) : new MemorySurveyCache(),
+    ...(pgUrl !== undefined && dataDir !== "off" ? { surveyMirrorDir: join(dataDir, "soil-survey") } : {}),
     boundary,
     org: CAST.org,
     actors: { ...FEED_ACTORS, assistant: CAST.assistant },
