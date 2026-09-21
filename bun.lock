@@ -48,6 +48,10 @@
       "name": "@geofarm/feeds-imagery",
       "version": "0.0.0",
     },
+    "packages/feeds/soil-survey": {
+      "name": "@geofarm/feeds-soil-survey",
+      "version": "0.0.0",
+    },
     "packages/feeds/weather": {
       "name": "@geofarm/feeds-weather",
       "version": "0.0.0",
@@ -85,6 +89,8 @@
     "@geofarm/client-surface": ["@geofarm/client-surface@workspace:packages/client/surface"],
 
     "@geofarm/feeds-imagery": ["@geofarm/feeds-imagery@workspace:packages/feeds/imagery"],
+
+    "@geofarm/feeds-soil-survey": ["@geofarm/feeds-soil-survey@workspace:packages/feeds/soil-survey"],
 
     "@geofarm/feeds-weather": ["@geofarm/feeds-weather@workspace:packages/feeds/weather"],
 

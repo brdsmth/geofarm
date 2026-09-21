@@ -1,0 +1,7 @@
+{
+  "name": "@geofarm/feeds-soil-survey",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts"
+}
